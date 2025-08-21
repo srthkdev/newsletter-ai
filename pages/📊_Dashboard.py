@@ -167,6 +167,78 @@ def send_newsletter_now() -> tuple[bool, str]:
         return False, f"Error generating newsletter: {str(e)}"
 
 
+def rate_newsletter(newsletter_id: str, rating: int, feedback: str = None) -> tuple[bool, str]:
+    """Rate a newsletter"""
+    try:
+        user_id = st.session_state.get("user_id", 1)  # Default to 1 for demo
+        
+        response = requests.post(
+            f"{API_BASE_URL}/newsletters/rate",
+            params={
+                "user_id": user_id,
+                "newsletter_id": newsletter_id,
+                "rating": rating,
+                "feedback": feedback
+            },
+            timeout=10,
+        )
+        
+        if response.status_code == 200:
+            return True, "Newsletter rated successfully!"
+        else:
+            error_data = response.json()
+            return False, error_data.get("detail", "Failed to rate newsletter")
+            
+    except Exception as e:
+        return False, f"Error rating newsletter: {str(e)}"
+
+
+def get_newsletter_rating(newsletter_id: str) -> Optional[Dict[str, Any]]:
+    """Get existing rating for a newsletter"""
+    try:
+        user_id = st.session_state.get("user_id", 1)
+        
+        response = requests.get(
+            f"{API_BASE_URL}/newsletters/rating/{user_id}/{newsletter_id}",
+            timeout=10,
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                return data.get("rating")
+        return None
+        
+    except Exception:
+        return None
+
+
+def display_star_rating(newsletter_id: str, current_rating: int = 0) -> Optional[int]:
+    """Display interactive star rating"""
+    stars = ["⭐" if i < current_rating else "☆" for i in range(5)]
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    rating = None
+    
+    with col1:
+        if st.button(f"{'⭐' if current_rating >= 1 else '☆'}", key=f"star1_{newsletter_id}", help="1 star"):
+            rating = 1
+    with col2:
+        if st.button(f"{'⭐' if current_rating >= 2 else '☆'}", key=f"star2_{newsletter_id}", help="2 stars"):
+            rating = 2
+    with col3:
+        if st.button(f"{'⭐' if current_rating >= 3 else '☆'}", key=f"star3_{newsletter_id}", help="3 stars"):
+            rating = 3
+    with col4:
+        if st.button(f"{'⭐' if current_rating >= 4 else '☆'}", key=f"star4_{newsletter_id}", help="4 stars"):
+            rating = 4
+    with col5:
+        if st.button(f"{'⭐' if current_rating >= 5 else '☆'}", key=f"star5_{newsletter_id}", help="5 stars"):
+            rating = 5
+    
+    return rating
+
+
 def main():
     """Main dashboard page"""
 
@@ -380,6 +452,11 @@ def main():
                 formatted_date = "Not sent"
 
             topics_str = ", ".join(newsletter.get("topics", []))
+            newsletter_id = newsletter.get("id")
+
+            # Get existing rating
+            existing_rating = get_newsletter_rating(newsletter_id)
+            current_rating = existing_rating.get("overall_rating", 0) if existing_rating else 0
 
             st.markdown(
                 f"""
@@ -394,11 +471,55 @@ def main():
                     <span style="color: #6b7280;">📊 {newsletter.get("article_count", 0)} articles</span>
                     <span style="color: #6b7280;">👁️ {newsletter.get("open_rate", 0)}% opened</span>
                     <span style="color: #6b7280;">🔗 {newsletter.get("click_rate", 0)}% clicked</span>
+                    {f'<span style="color: #f59e0b;">⭐ {current_rating}/5 rated</span>' if current_rating > 0 else '<span style="color: #9ca3af;">⭐ Not rated</span>'}
                 </div>
             </div>
             """,
                 unsafe_allow_html=True,
             )
+
+            # Rating section
+            if status == "sent":
+                st.markdown(f"**Rate this newsletter:**")
+                
+                # Display star rating
+                rating_col, feedback_col = st.columns([1, 2])
+                
+                with rating_col:
+                    new_rating = display_star_rating(newsletter_id, current_rating)
+                
+                with feedback_col:
+                    feedback_key = f"feedback_{newsletter_id}"
+                    current_feedback = existing_rating.get("feedback_text", "") if existing_rating else ""
+                    feedback = st.text_input(
+                        "Optional feedback:", 
+                        value=current_feedback,
+                        key=feedback_key,
+                        placeholder="What did you think about this newsletter?"
+                    )
+                
+                # Process rating if changed
+                if new_rating and new_rating != current_rating:
+                    with st.spinner("Saving your rating..."):
+                        success, message = rate_newsletter(newsletter_id, new_rating, feedback)
+                    
+                    if success:
+                        st.success(f"✅ Rated {new_rating} stars!")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+                
+                # Update feedback if changed
+                if feedback != current_feedback and current_rating > 0:
+                    if st.button(f"💭 Update Feedback", key=f"update_feedback_{newsletter_id}"):
+                        with st.spinner("Updating feedback..."):
+                            success, message = rate_newsletter(newsletter_id, current_rating, feedback)
+                        
+                        if success:
+                            st.success("✅ Feedback updated!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
 
             # Action buttons for each newsletter
             col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
@@ -413,11 +534,13 @@ def main():
 
             with col3:
                 if st.button(f"📊 Analytics", key=f"analytics_{newsletter['id']}"):
-                    st.info("🚧 Detailed analytics coming soon!")
+                    st.switch_page("pages/📈_Analytics.py")
 
             with col4:
                 if st.button(f"🔄 Create Similar", key=f"similar_{newsletter['id']}"):
                     st.info("🚧 Create similar newsletter coming soon!")
+            
+            st.markdown("---")
 
     else:
         st.info("""
