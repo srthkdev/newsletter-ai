@@ -634,126 +634,29 @@ def show_prompt_history():
                 if st.button(f"🗑️ Delete", key=f"delete_{i}"):
                     st.session_state.prompt_history.remove(prompt_data)
                     st.rerun()
-        "Custom Newsletter Prompt",
-        value=st.session_state.custom_prompt,
-        height=150,
-        placeholder=placeholder_text,
-        help="Describe exactly what you want in your newsletter. Be as specific as possible!",
-        key="prompt_input",
-    )
 
-    # Update session state
-    st.session_state.custom_prompt = custom_prompt
+    # Get current custom prompt
+    custom_prompt = st.session_state.custom_prompt
 
-    # Real-time prompt analysis and enhancement
-    if custom_prompt:
-        st.markdown("#### 🔍 Prompt Analysis & Enhancement")
-
-        # Get validation from API
-        validation_result = validate_prompt(custom_prompt)
+    # Only show analysis if we have a prompt and we're in the right context
+    if custom_prompt and len(custom_prompt.strip()) > 10:
+        st.markdown("#### 🔍 Quick Analysis")
         
-        if validation_result:
-            # Display validation results
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                score = validation_result.get("score", 0)
-                color = "green" if score >= 40 else "orange" if score >= 25 else "red"
-                st.metric("Quality Score", f"{score}/60", help="Overall prompt quality score")
-
-            with col2:
-                word_count = len(custom_prompt.split())
-                status = "✅" if word_count >= 10 else "⚠️"
-                st.metric("Word Count", word_count, help="Aim for 10+ words for better results")
-
-            with col3:
-                is_valid = validation_result.get("is_valid", False)
-                st.markdown(f"**Valid Prompt**\n{'✅ Yes' if is_valid else '❌ No'}")
-
-            with col4:
-                feedback_count = len(validation_result.get("feedback", []))
-                st.markdown(f"**Feedback Items**\n📝 {feedback_count}")
-
-            # Show feedback
-            feedback = validation_result.get("feedback", [])
-            if feedback:
-                st.markdown("**✅ Positive feedback:**")
-                for item in feedback:
-                    st.markdown(f"• {item}")
-
-            # Show suggestions
-            suggestions = validation_result.get("suggestions", [])
-            if suggestions:
-                st.markdown("**💡 Suggestions for improvement:**")
-                for suggestion in suggestions:
-                    st.markdown(f"• {suggestion}")
-
-            # Show warnings
-            warnings = validation_result.get("warnings", [])
-            if warnings:
-                st.markdown("**⚠️ Warnings:**")
-                for warning in warnings:
-                    st.markdown(f"• {warning}")
-
-        # RAG Enhancement Section
-        if preferences and not preferences.get("is_default", False):
-            st.markdown("---")
-            st.markdown("#### 🧠 AI Enhancement (RAG)")
+        char_count = len(custom_prompt)
+        word_count = len(custom_prompt.split())
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Characters", char_count)
+        with col2:
+            st.metric("Words", word_count)
             
-            col1, col2 = st.columns([1, 1])
-            
-            with col1:
-                if st.button("🚀 Enhance with AI", help="Use your reading history to improve this prompt"):
-                    with st.spinner("Enhancing prompt with your reading history..."):
-                        user_id = st.session_state.get("user_id", "demo_user")
-                        enhancement_result = enhance_prompt_with_rag(
-                            custom_prompt, user_id, preferences
-                        )
-                    
-                    if enhancement_result:
-                        st.session_state.rag_enhancement = enhancement_result
-                        if enhancement_result.get("rag_available"):
-                            st.success("✅ Prompt enhanced with your reading history!")
-                        else:
-                            st.info("💡 No reading history available yet, but prompt was analyzed.")
-                    else:
-                        st.error("❌ Enhancement failed. Please try again.")
-
-            with col2:
-                if st.button("🔄 Reset to Original"):
-                    if "rag_enhancement" in st.session_state:
-                        del st.session_state.rag_enhancement
-                        st.success("✅ Reset to original prompt")
-
-            # Show enhancement results
-            if "rag_enhancement" in st.session_state:
-                enhancement = st.session_state.rag_enhancement
-                
-                if enhancement.get("enhanced_prompt") != custom_prompt:
-                    st.markdown("**🎯 Enhanced Prompt:**")
-                    st.info(enhancement["enhanced_prompt"])
-                    
-                    # Show what was enhanced
-                    enhancements = enhancement.get("enhancements_applied", [])
-                    if enhancements:
-                        st.markdown("**✨ Enhancements applied:**")
-                        for enhancement_item in enhancements:
-                            st.markdown(f"• {enhancement_item}")
-                    
-                    # Show RAG insights
-                    insights = enhancement.get("rag_insights", [])
-                    if insights:
-                        st.markdown("**🔍 Personalization insights:**")
-                        for insight in insights:
-                            st.markdown(f"• {insight}")
-                    
-                    # Option to use enhanced prompt
-                    if st.button("✅ Use Enhanced Prompt"):
-                        st.session_state.custom_prompt = enhancement["enhanced_prompt"]
-                        st.success("✅ Enhanced prompt applied!")
-                        st.rerun()
+        if word_count < 5:
+            st.warning("⚠️ This prompt seems quite short for optimal results")
+        elif word_count > 100:
+            st.info("📝 This is a detailed prompt - good for specific requests")
         else:
-            st.info("💡 Set up your preferences to unlock AI-powered prompt enhancement based on your reading history!")
+            st.success("✅ Good prompt length for newsletter generation")
 
 
 def show_example_prompts():
