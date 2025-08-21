@@ -44,10 +44,36 @@ async def lifespan(app: FastAPI):
     else:
         print("⚠️  Portia AI not configured (expected without API keys)")
 
+    # Initialize newsletter scheduler (optional for development)
+    try:
+        from app.services.scheduler import newsletter_scheduler
+        print("📅 Newsletter scheduler initialized (not started in development)")
+        print("   Use /newsletters/scheduler/ endpoints to manage scheduling")
+    except Exception as e:
+        print(f"⚠️  Newsletter scheduler initialization: {e}")
+
+    # Initialize monitoring system (optional for development)
+    try:
+        from app.services.monitoring import start_portia_monitoring
+        await start_portia_monitoring()
+        print("🔍 Portia agent monitoring system started")
+        print("   Use /newsletters/monitoring/ endpoints to access monitoring dashboard")
+    except Exception as e:
+        print(f"⚠️  Monitoring system initialization: {e}")
+        print("   Monitoring can be started manually via API endpoints")
+
     yield
 
     # Shutdown
     print("👋 Shutting down Newsletter AI...")
+    
+    # Stop monitoring system
+    try:
+        from app.services.monitoring import stop_portia_monitoring
+        await stop_portia_monitoring()
+        print("🔍 Monitoring system stopped")
+    except Exception as e:
+        print(f"⚠️  Monitoring system shutdown: {e}")
 
 
 app = FastAPI(
@@ -95,6 +121,7 @@ async def health_check():
         "database": "unknown",
         "redis": "disconnected",
         "vector": "disconnected",
+        "monitoring": "unknown"
     }
 
     # Check Redis
@@ -110,5 +137,16 @@ async def health_check():
     vector = get_vector_client()
     if vector:
         services["vector"] = "configured"
+
+    # Check Monitoring System
+    try:
+        from app.services.monitoring import get_monitoring_dashboard
+        dashboard = await get_monitoring_dashboard()
+        if dashboard and dashboard.get("system_health", {}).get("monitoring_active"):
+            services["monitoring"] = "active"
+        else:
+            services["monitoring"] = "inactive"
+    except Exception:
+        services["monitoring"] = "error"
 
     return {"status": "healthy", "services": services}

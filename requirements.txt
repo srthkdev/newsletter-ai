@@ -31,3 +31,6 @@ sentence-transformers  # Alternative embedding model
 
 # Date parsing
 python-dateutil
+
+# Scheduling
+schedule

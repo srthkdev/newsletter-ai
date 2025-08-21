@@ -4,6 +4,7 @@ Newsletter AI - User Preferences Dashboard
 
 import streamlit as st
 import requests
+import time
 from typing import Dict, List, Any, Optional
 import json
 
@@ -19,37 +20,156 @@ API_BASE_URL = "http://localhost:8000/api/v1"
 st.markdown(
     """
 <style>
+    /* Hide Streamlit default elements */
+    .stDeployButton { display: none; }
+    #MainMenu { visibility: hidden; }
+    header { visibility: hidden; }
+    footer { visibility: hidden; }
+    
     .preference-section {
-        background: #f8fafc;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #667eea;
-        margin: 1rem 0;
+        background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+        padding: 2rem;
+        border-radius: 15px;
+        border: 1px solid #e2e8f0;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
     }
+    
+    .preference-section:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(102, 126, 234, 0.1);
+        border-color: #667eea;
+    }
+    
     .success-message {
-        background: #d1fae5;
+        background: linear-gradient(135deg, #d1fae5, #a7f3d0);
         color: #065f46;
-        padding: 1rem;
-        border-radius: 8px;
+        padding: 1.5rem;
+        border-radius: 12px;
         border-left: 4px solid #10b981;
-        margin: 1rem 0;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.1);
+        animation: slideIn 0.3s ease;
     }
+    
     .error-message {
-        background: #fee2e2;
+        background: linear-gradient(135deg, #fee2e2, #fecaca);
         color: #991b1b;
-        padding: 1rem;
-        border-radius: 8px;
+        padding: 1.5rem;
+        border-radius: 12px;
         border-left: 4px solid #ef4444;
-        margin: 1rem 0;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(239, 68, 68, 0.1);
+        animation: shake 0.5s ease;
     }
+    
     .topic-chip {
         display: inline-block;
-        background: #e0e7ff;
+        background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
         color: #3730a3;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
+        padding: 0.5rem 1rem;
+        border-radius: 25px;
         margin: 0.25rem;
         font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    
+    .topic-chip:hover {
+        transform: scale(1.05);
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border-color: #667eea;
+    }
+    
+    .section-header {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        text-align: center;
+        font-weight: 600;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .recommendation-card {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #f59e0b;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px rgba(245, 158, 11, 0.1);
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin: 1.5rem 0;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 12px rgba(102, 126, 234, 0.15);
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #667eea;
+        display: block;
+    }
+    
+    .stat-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+        font-weight: 500;
+    }
+    
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+    
+    /* Enhanced form styling */
+    .stSelectbox > div > div {
+        border-radius: 10px;
+        border: 2px solid #e2e8f0;
+        transition: border-color 0.3s ease;
+    }
+    
+    .stSelectbox > div > div:focus-within {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .stSlider > div > div {
+        background: linear-gradient(90deg, #e2e8f0, #667eea);
+    }
+    
+    .stCheckbox > label {
+        font-weight: 500;
+        color: #374151;
     }
 </style>
 """,
@@ -170,16 +290,41 @@ def get_preference_recommendations() -> Optional[List[Dict[str, Any]]]:
         return None
 
 
-def main():
-    """Main preferences page"""
+def calculate_setup_progress(preferences: Dict[str, Any]) -> float:
+    """Calculate the setup progress based on completed preferences"""
+    if not preferences or preferences.get("is_default", True):
+        return 0.0
+    
+    progress_items = [
+        len(preferences.get("topics", [])) > 0,  # Has topics
+        preferences.get("tone") != "professional" or len(preferences.get("topics", [])) > 2,  # Has custom tone or multiple topics
+        preferences.get("frequency") is not None,  # Has frequency
+        preferences.get("max_articles", 0) > 0,  # Has article limit
+        len(preferences.get("custom_instructions", "")) > 0 or preferences.get("include_trending", False),  # Has custom instructions or trending
+    ]
+    
+    return sum(progress_items) / len(progress_items)
 
-    # Header
-    st.title("⚙️ Newsletter Preferences")
-    st.markdown("Customize your newsletter experience with AI-powered personalization")
+
+def main():
+    """Enhanced main preferences page with modern UI and interactive features"""
+
+    # Header with modern styling
+    st.markdown(
+        """
+    <div class="section-header">
+        <h1>⚙️ Newsletter Preferences</h1>
+        <p>Customize your AI-powered newsletter experience with advanced personalization</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
     # Initialize session state for preferences
     if "preferences_changed" not in st.session_state:
         st.session_state.preferences_changed = False
+    if "last_saved" not in st.session_state:
+        st.session_state.last_saved = None
 
     # Load current preferences
     current_preferences = get_user_preferences()
@@ -194,6 +339,40 @@ def main():
             "max_articles": 10,
             "include_trending": True,
         }
+
+    # Show current stats if preferences exist
+    if current_preferences and not current_preferences.get("is_default", True):
+        st.markdown(
+            f"""
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-number">{len(current_preferences.get("topics", []))}</span>
+                <div class="stat-label">Topics Selected</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">🎭</span>
+                <div class="stat-label">{current_preferences.get("tone", "Not set").title()} Tone</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">⏰</span>
+                <div class="stat-label">{current_preferences.get("frequency", "Not set").title()}</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">{current_preferences.get("max_articles", 0)}</span>
+                <div class="stat-label">Max Articles</div>
+            </div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+    
+    # Progress indicator
+    progress_value = calculate_setup_progress(current_preferences)
+    if progress_value < 1.0:
+        st.progress(progress_value)
+        st.info(f"🚧 Setup Progress: {int(progress_value * 100)}% complete. Complete all sections for optimal experience.")
+    else:
+        st.success("✓ Your newsletter preferences are fully configured!")
 
     # Create tabs for different preference sections
     tab1, tab2, tab3, tab4 = st.tabs(

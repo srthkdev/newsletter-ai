@@ -4,7 +4,9 @@ Newsletter AI - Custom Newsletter Creation
 
 import streamlit as st
 import requests
+import time
 from typing import Dict, List, Any, Optional
+from datetime import datetime
 import json
 
 # Page configuration
@@ -19,39 +21,210 @@ API_BASE_URL = "http://localhost:8000/api/v1"
 st.markdown(
     """
 <style>
+    /* Hide Streamlit default elements */
+    .stDeployButton { display: none; }
+    #MainMenu { visibility: hidden; }
+    header { visibility: hidden; }
+    footer { visibility: hidden; }
+    
+    .create-header {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        margin: 1rem 0;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+    }
+    
     .prompt-section {
-        background: #f8fafc;
+        background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+        padding: 2rem;
+        border-radius: 15px;
+        border: 1px solid #e2e8f0;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    
+    .prompt-section:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(102, 126, 234, 0.1);
+        border-color: #667eea;
+    }
+    
+    .example-prompt {
+        background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .example-prompt:hover {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        transform: scale(1.02);
+        border-color: #667eea;
+        box-shadow: 0 6px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .example-category {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        margin: 1rem 0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .success-message {
+        background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+        color: #065f46;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #10b981;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.1);
+        animation: slideIn 0.3s ease;
+    }
+    
+    .info-message {
+        background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+        color: #1e40af;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #3b82f6;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.1);
+    }
+    
+    .warning-message {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        color: #92400e;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #f59e0b;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(245, 158, 11, 0.1);
+    }
+    
+    .generation-status {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        border: 2px solid #e2e8f0;
+        margin: 1.5rem 0;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+    
+    .preview-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        border: 1px solid #e2e8f0;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+    
+    .stats-row {
+        display: flex;
+        justify-content: space-around;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin: 1.5rem 0;
+    }
+    
+    .stat-item {
+        background: white;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        text-align: center;
+        min-width: 120px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .prompt-tips {
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #22c55e;
+        margin: 1rem 0;
+    }
+    
+    .advanced-option {
+        background: white;
         padding: 1.5rem;
         border-radius: 10px;
-        border-left: 4px solid #667eea;
+        border: 1px solid #e2e8f0;
         margin: 1rem 0;
+        transition: all 0.3s ease;
     }
-    .example-prompt {
-        background: #e0e7ff;
+    
+    .advanced-option:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.1);
+    }
+    
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Enhanced text area styling */
+    .stTextArea > div > div > textarea {
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
         padding: 1rem;
-        border-radius: 8px;
-        margin: 0.5rem 0;
-        cursor: pointer;
-        transition: background-color 0.2s;
+        font-size: 1rem;
+        line-height: 1.6;
+        transition: border-color 0.3s ease;
+        font-family: 'Inter', sans-serif;
     }
-    .example-prompt:hover {
-        background: #c7d2fe;
+    
+    .stTextArea > div > div > textarea:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
-    .success-message {
-        background: #d1fae5;
-        color: #065f46;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #10b981;
-        margin: 1rem 0;
+    
+    /* Button enhancements */
+    .stButton > button {
+        border-radius: 10px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        border: none;
     }
-    .info-message {
-        background: #dbeafe;
-        color: #1e40af;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #3b82f6;
-        margin: 1rem 0;
+    
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .stButton > button[kind="primary"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+        .create-header {
+            padding: 1.5rem;
+        }
+        
+        .prompt-section {
+            padding: 1.5rem;
+        }
+        
+        .stats-row {
+            flex-direction: column;
+        }
     }
 </style>
 """,
@@ -223,11 +396,19 @@ def send_newsletter(newsletter_id: str) -> tuple[bool, str]:
 
 
 def main():
-    """Main custom newsletter creation page"""
+    """Enhanced custom newsletter creation page with modern UI"""
 
-    # Header
-    st.title("✍️ Create Custom Newsletter")
-    st.markdown("Tell our AI exactly what kind of newsletter you want to receive")
+    # Enhanced header
+    st.markdown(
+        """
+    <div class="create-header">
+        <h1>✍️ Create Custom Newsletter</h1>
+        <p>Tell our AI agents exactly what kind of newsletter you want to receive</p>
+        <p><strong>Powered by Portia AI</strong> • Research • Writing • Custom Prompt Processing</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
     # Load user preferences
     preferences = get_user_preferences()
@@ -237,10 +418,27 @@ def main():
         st.session_state.custom_prompt = ""
     if "generated_newsletter" not in st.session_state:
         st.session_state.generated_newsletter = None
+    if "prompt_history" not in st.session_state:
+        st.session_state.prompt_history = []
+    if "generation_progress" not in st.session_state:
+        st.session_state.generation_progress = 0
 
-    # Main content tabs
-    tab1, tab2, tab3 = st.tabs(
-        ["✍️ Create Prompt", "📋 Examples", "🎯 Advanced Options"]
+    # Progress indicator for newsletter creation
+    if st.session_state.generation_progress > 0:
+        progress_col1, progress_col2 = st.columns([3, 1])
+        
+        with progress_col1:
+            st.progress(st.session_state.generation_progress)
+        
+        with progress_col2:
+            st.write(f"{int(st.session_state.generation_progress * 100)}%")
+        
+        if st.session_state.generation_progress < 1.0:
+            st.info("🤖 AI agents are working on your newsletter...")
+
+    # Main content tabs with enhanced UI
+    tab1, tab2, tab3, tab4 = st.tabs(
+        ["✍️ Create Prompt", "📚 Examples", "🎯 Advanced Options", "📊 Prompt History"]
     )
 
     with tab1:
@@ -251,6 +449,9 @@ def main():
 
     with tab3:
         show_advanced_options(preferences)
+        
+    with tab4:
+        show_prompt_history()
 
     # Generation and preview section
     st.markdown("---")
@@ -258,46 +459,181 @@ def main():
 
 
 def show_prompt_creation(preferences: Optional[Dict[str, Any]]):
-    """Show the main prompt creation interface"""
+    """Show the enhanced prompt creation interface"""
 
-    st.markdown("### 💭 Describe Your Perfect Newsletter")
+    st.markdown(
+        """
+    <div class="prompt-section">
+        <h3>💭 Describe Your Perfect Newsletter</h3>
+        <p>Our AI agents will use your description to research, curate, and write a personalized newsletter just for you.</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-    # Current preferences context
+    # Current preferences context with enhanced display
     if preferences and not preferences.get("is_default", False):
         st.markdown(
-            """
+            f"""
         <div class="info-message">
-            <strong>📋 Your current preferences will be combined with your custom prompt:</strong><br>
-            <strong>Topics:</strong> {}<br>
-            <strong>Tone:</strong> {}<br>
-            <strong>Frequency:</strong> {}
+            <strong>📋 Your Current Preferences</strong><br>
+            <strong>Topics:</strong> {', '.join(preferences.get('topics', []))}<br>
+            <strong>Tone:</strong> {preferences.get('tone', 'Not set').title()}<br>
+            <strong>Frequency:</strong> {preferences.get('frequency', 'Not set').replace('_', ' ').title()}<br>
+            <strong>Max Articles:</strong> {preferences.get('max_articles', 'Not set')}<br>
+            <em>These preferences will be combined with your custom prompt for optimal results.</em>
         </div>
-        """.format(
-                ", ".join(preferences.get("topics", [])),
-                preferences.get("tone", "Not set").title(),
-                preferences.get("frequency", "Not set").replace("_", " ").title(),
-            ),
+        """,
             unsafe_allow_html=True,
         )
     else:
-        st.warning(
-            "⚠️ You haven't set up preferences yet. Your custom prompt will use default settings."
+        st.markdown(
+            """
+        <div class="warning-message">
+            <strong>⚠️ No Preferences Set</strong><br>
+            You haven't set up preferences yet. Your custom prompt will use default settings.
+            <a href="/pages/⚙️_Preferences.py" target="_self">Set up preferences first</a> for better results.
+        </div>
+        """,
+            unsafe_allow_html=True,
         )
 
-    # Main prompt input
-    st.markdown("#### What would you like your newsletter to focus on?")
-
-    # Load placeholders from API
-    _, placeholders = load_example_prompts()
+    # Enhanced prompt input with tips
+    col1, col2 = st.columns([2, 1])
     
-    # Create placeholder text
-    placeholder_text = "Example prompts:\n\n"
-    for i, placeholder in enumerate(placeholders[:4], 1):
-        placeholder_text += f"• \"{placeholder}\"\n"
-    
-    placeholder_text += "\nBe specific about:\n- Topics you want covered\n- Tone/style preferences\n- Number of articles\n- Any special focus areas"
+    with col1:
+        st.markdown("#### 🎯 What would you like your newsletter to focus on?")
 
-    custom_prompt = st.text_area(
+        # Load placeholders from API
+        _, placeholders = load_example_prompts()
+        
+        # Create enhanced placeholder text
+        placeholder_text = "Examples:\n\n"
+        for i, placeholder in enumerate(placeholders[:3], 1):
+            placeholder_text += f"\u2022 \"{placeholder}\"\n"
+        
+        placeholder_text += "\nBe specific about topics, tone, focus areas, and any special requirements..."
+
+        custom_prompt = st.text_area(
+            "Your Custom Prompt",
+            value=st.session_state.custom_prompt,
+            height=200,
+            placeholder=placeholder_text,
+            help="Describe exactly what you want in your newsletter. Be as specific as possible!",
+            key="prompt_textarea",
+        )
+
+        # Update session state
+        if custom_prompt != st.session_state.custom_prompt:
+            st.session_state.custom_prompt = custom_prompt
+            
+        # Character counter and validation
+        char_count = len(custom_prompt)
+        if char_count > 0:
+            if char_count < 20:
+                st.warning(f"📏 {char_count} characters - Try to be more specific for better results")
+            elif char_count > 500:
+                st.warning(f"📏 {char_count} characters - Consider making your prompt more concise")
+            else:
+                st.success(f"✓ {char_count} characters - Good prompt length!")
+    
+    with col2:
+        st.markdown(
+            """
+        <div class="prompt-tips">
+            <h4>💡 Writing Tips</h4>
+            <ul>
+                <li><strong>Be Specific:</strong> Mention exact topics or themes</li>
+                <li><strong>Set the Tone:</strong> Professional, casual, technical, etc.</li>
+                <li><strong>Mention Sources:</strong> Prefer certain websites or publications</li>
+                <li><strong>Time Frame:</strong> This week, recent, trending, etc.</li>
+                <li><strong>Length:</strong> Brief summaries or in-depth articles</li>
+                <li><strong>Special Focus:</strong> Startups, research, industry news</li>
+            </ul>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+        
+        # Quick topic buttons
+        st.markdown("#### ⚡ Quick Topic Ideas")
+        
+        quick_topics = [
+            "AI breakthroughs this week",
+            "Startup funding news", 
+            "Tech product launches",
+            "Science discoveries",
+            "Business trends"
+        ]
+        
+        for topic in quick_topics:
+            if st.button(f"🔄 {topic}", key=f"quick_{topic}", use_container_width=True):
+                st.session_state.custom_prompt = topic
+                st.rerun()
+
+    # Real-time prompt enhancement preview
+    if custom_prompt and len(custom_prompt) > 10:
+        with st.expander("🤖 AI Enhancement Preview", expanded=False):
+            st.info("🚧 This feature shows how our Custom Prompt Agent will enhance your prompt")
+            
+            # Simulate prompt enhancement
+            enhanced_preview = f"""
+            **Original Prompt:** {custom_prompt}
+            
+            **Enhanced by AI:**
+            Based on your request and preferences, I'll create a newsletter focusing on {custom_prompt.lower()}. 
+            I'll research the latest developments, filter for quality content, and present it in a 
+            {preferences.get('tone', 'professional') if preferences else 'professional'} tone 
+            suitable for your interests.
+            
+            **Research Strategy:** Tavily API search + content filtering
+            **Writing Style:** {preferences.get('tone', 'Professional') if preferences else 'Professional'} tone with clear structure
+            **Content Focus:** Recent articles (last 3 days) with high relevance scores
+            """
+            
+            st.markdown(enhanced_preview)
+
+
+def show_prompt_history():
+    """Show prompt history and allow reuse of previous prompts"""
+    
+    st.markdown(
+        """
+    <div class="prompt-section">
+        <h3>📊 Your Prompt History</h3>
+        <p>Review and reuse your previous newsletter prompts</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+    
+    if not st.session_state.prompt_history:
+        st.info("📜 No prompt history yet. Create your first custom newsletter to see your prompts here!")
+        return
+    
+    st.markdown(f"### 🗓️ {len(st.session_state.prompt_history)} Previous Prompts")
+    
+    for i, prompt_data in enumerate(reversed(st.session_state.prompt_history), 1):
+        with st.expander(f"Prompt #{i}: {prompt_data.get('preview', 'Custom Newsletter')[:50]}..."):
+            st.markdown(f"**Prompt:** {prompt_data.get('prompt', 'N/A')}")
+            st.markdown(f"**Created:** {prompt_data.get('created_at', 'Unknown')}")
+            
+            if prompt_data.get('success', False):
+                st.success("✓ Successfully generated")
+            else:
+                st.error("❌ Generation failed")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button(f"🔄 Reuse Prompt", key=f"reuse_{i}"):
+                    st.session_state.custom_prompt = prompt_data.get('prompt', '')
+                    st.success("✓ Prompt loaded! Switch to 'Create Prompt' tab to use it.")
+            
+            with col2:
+                if st.button(f"🗑️ Delete", key=f"delete_{i}"):
+                    st.session_state.prompt_history.remove(prompt_data)
+                    st.rerun()
         "Custom Newsletter Prompt",
         value=st.session_state.custom_prompt,
         height=150,

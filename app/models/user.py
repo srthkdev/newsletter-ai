@@ -47,3 +47,6 @@ class User(Base):
     newsletter_history = relationship(
         "NewsletterHistory", back_populates="user", cascade="all, delete-orphan"
     )
+    newsletter_ratings = relationship(
+        "NewsletterRating", back_populates="user", cascade="all, delete-orphan"
+    )

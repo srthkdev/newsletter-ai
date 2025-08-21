@@ -1053,6 +1053,204 @@ Your Newsletter AI
             print(f"Failed to get personalized suggestions: {e}")
             return []
 
+    async def _enhance_content_with_rag(
+        self, 
+        user_id: str, 
+        articles: List[Dict[str, Any]], 
+        user_preferences: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Enhance content generation with RAG system insights"""
+        try:
+            if not user_id:
+                return {"rag_available": False, "reason": "No user ID provided"}
+            
+            # Get user's newsletter history for context
+            similar_newsletters = await rag_system.retrieve_similar_newsletters(
+                user_id=user_id,
+                query=" ".join([article.get("title", "") for article in articles[:3]]),
+                top_k=5,
+                similarity_threshold=0.5
+            )
+            
+            # Get user preference analysis
+            user_analysis = await rag_system.analyze_user_preferences(user_id)
+            
+            # Get content recommendations based on current articles
+            current_topics = list(set([
+                article.get("topic", "general") for article in articles
+            ]))
+            
+            content_recommendations = await rag_system.get_content_recommendations(
+                user_id=user_id,
+                current_topics=current_topics,
+                current_articles=articles
+            )
+            
+            # Analyze reading patterns
+            reading_patterns = user_analysis.get("content_patterns", {})
+            topic_interests = user_analysis.get("topic_interests", {})
+            
+            # Generate content strategy based on RAG insights
+            content_strategy = {
+                "recommended_tone": self._get_recommended_tone_from_history(
+                    similar_newsletters, user_preferences
+                ),
+                "preferred_structure": self._analyze_preferred_structure(
+                    similar_newsletters
+                ),
+                "engagement_triggers": self._extract_engagement_patterns(
+                    similar_newsletters
+                ),
+                "avoid_topics": self._identify_low_engagement_topics(
+                    similar_newsletters, topic_interests
+                )
+            }
+            
+            # Generate personalization insights
+            personalization_insights = []
+            
+            if similar_newsletters:
+                personalization_insights.append(
+                    f"Found {len(similar_newsletters)} similar newsletters in your history"
+                )
+            
+            if reading_patterns.get("preferred_length") == "medium":
+                personalization_insights.append(
+                    "Optimizing for medium-length content based on your reading preferences"
+                )
+            
+            # Check for topic alignment
+            preferred_topics = list(topic_interests.keys())[:3] if topic_interests else []
+            matching_topics = [topic for topic in current_topics if topic in preferred_topics]
+            
+            if matching_topics:
+                personalization_insights.append(
+                    f"Emphasizing {', '.join(matching_topics)} based on your interests"
+                )
+            
+            return {
+                "rag_available": True,
+                "similar_content": similar_newsletters,
+                "user_analysis": user_analysis,
+                "recommendations": content_recommendations,
+                "content_strategy": content_strategy,
+                "personalization_insights": personalization_insights,
+                "reading_patterns": reading_patterns,
+                "topic_alignment": {
+                    "current_topics": current_topics,
+                    "preferred_topics": preferred_topics,
+                    "matching_topics": matching_topics
+                }
+            }
+            
+        except Exception as e:
+            print(f"RAG enhancement failed: {e}")
+            return {
+                "rag_available": False, 
+                "error": str(e),
+                "fallback_used": True
+            }
+    
+    def _get_recommended_tone_from_history(
+        self, 
+        similar_newsletters: List[Dict[str, Any]], 
+        user_preferences: Dict[str, Any]
+    ) -> str:
+        """Analyze user's newsletter history to recommend optimal tone"""
+        if not similar_newsletters:
+            return user_preferences.get("tone", "professional")
+        
+        # Count tone preferences from history
+        tone_counts = {}
+        for newsletter in similar_newsletters:
+            metadata = newsletter.get("metadata", {})
+            if isinstance(metadata, dict):
+                tone = metadata.get("tone", "professional")
+                tone_counts[tone] = tone_counts.get(tone, 0) + 1
+        
+        # Return most frequent tone, fallback to user preference
+        if tone_counts:
+            return max(tone_counts.items(), key=lambda x: x[1])[0]
+        
+        return user_preferences.get("tone", "professional")
+    
+    def _analyze_preferred_structure(
+        self, similar_newsletters: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Analyze preferred newsletter structure from user history"""
+        if not similar_newsletters:
+            return {"sections": 3, "articles_per_section": 3}
+        
+        section_counts = []
+        article_counts = []
+        
+        for newsletter in similar_newsletters:
+            content = newsletter.get("content", "")
+            if isinstance(content, str):
+                # Simple heuristic: count markdown headers
+                section_count = content.count("##")
+                if section_count > 0:
+                    section_counts.append(section_count)
+                
+                # Count article references
+                article_count = content.count("**[") # Markdown links
+                if article_count > 0:
+                    article_counts.append(article_count)
+        
+        avg_sections = int(sum(section_counts) / len(section_counts)) if section_counts else 3
+        avg_articles = int(sum(article_counts) / len(article_counts)) if article_counts else 8
+        
+        return {
+            "sections": max(2, min(5, avg_sections)),
+            "total_articles": max(5, min(12, avg_articles))
+        }
+    
+    def _extract_engagement_patterns(
+        self, similar_newsletters: List[Dict[str, Any]]
+    ) -> List[str]:
+        """Extract patterns that drive engagement from user history"""
+        patterns = []
+        
+        if not similar_newsletters:
+            return ["Include actionable insights", "Use clear section headers"]
+        
+        # Analyze successful newsletter characteristics
+        for newsletter in similar_newsletters:
+            metadata = newsletter.get("metadata", {})
+            if isinstance(metadata, dict):
+                score = metadata.get("engagement_score", 0)
+                if score > 0.7:  # High engagement
+                    content = newsletter.get("content", "")
+                    if "actionable" in content.lower():
+                        patterns.append("Include actionable insights")
+                    if "🚀" in content or "📊" in content:
+                        patterns.append("Use engaging emojis")
+                    if "takeaway" in content.lower():
+                        patterns.append("Provide clear takeaways")
+        
+        # Remove duplicates and return top patterns
+        return list(set(patterns))[:3] if patterns else [
+            "Include actionable insights", 
+            "Use clear section headers",
+            "Provide key takeaways"
+        ]
+    
+    def _identify_low_engagement_topics(
+        self, 
+        similar_newsletters: List[Dict[str, Any]], 
+        topic_interests: Dict[str, int]
+    ) -> List[str]:
+        """Identify topics that historically have low engagement"""
+        if not topic_interests:
+            return []
+        
+        # Sort topics by interest level (lower scores = less engaging)
+        sorted_topics = sorted(topic_interests.items(), key=lambda x: x[1])
+        
+        # Return bottom 20% as topics to avoid emphasizing
+        cutoff = max(1, len(sorted_topics) // 5)
+        return [topic for topic, _ in sorted_topics[:cutoff]]
+
     async def _apply_rag_content_strategy(
         self, content: Dict[str, Any], rag_context: Dict[str, Any]
     ) -> Dict[str, Any]:
