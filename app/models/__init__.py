@@ -6,10 +6,10 @@ from .newsletter_history import NewsletterHistory, DeliveryStatus
 
 __all__ = [
     "User",
-    "Newsletter", 
+    "Newsletter",
     "NewsletterStatus",
     "NewsletterType",
     "UserPreferences",
     "NewsletterHistory",
-    "DeliveryStatus"
+    "DeliveryStatus",
 ]

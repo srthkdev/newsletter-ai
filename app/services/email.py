@@ -1,34 +1,37 @@
 """
 Email service using Resend API for OTP and newsletter delivery
 """
+
 import secrets
 import string
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from app.core.config import settings
 
+
 class EmailService:
     """Email service using Resend API"""
-    
+
     def __init__(self):
         self.api_key = settings.RESEND_API_KEY
         self.from_email = "Newsletter AI <noreply@newsletter-ai.com>"
-    
+
     def generate_otp(self, length: int = 6) -> str:
         """Generate a random OTP code"""
         digits = string.digits
-        return ''.join(secrets.choice(digits) for _ in range(length))
-    
+        return "".join(secrets.choice(digits) for _ in range(length))
+
     async def send_otp_email(self, email: str, otp_code: str) -> bool:
         """Send OTP verification email"""
         if not self.api_key:
             print("⚠️  Resend API key not configured")
             return False
-        
+
         try:
             import resend
+
             resend.api_key = self.api_key
-            
+
             html_content = f"""
             <!DOCTYPE html>
             <html>
@@ -84,7 +87,7 @@ class EmailService:
             </body>
             </html>
             """
-            
+
             params = {
                 "from": self.from_email,
                 "to": [email],
@@ -104,31 +107,34 @@ Once verified, you'll be able to set your preferences and receive personalized A
 If you didn't request this code, you can safely ignore this email.
 
 Newsletter AI - Intelligent newsletter creation powered by AI
-                """.strip()
+                """.strip(),
             }
-            
+
             email_response = resend.Emails.send(params)
             print(f"✅ OTP email sent to {email}: {email_response}")
             return True
-            
+
         except ImportError:
             print("⚠️  Resend package not installed. Install with: pip install resend")
             return False
         except Exception as e:
             print(f"❌ Failed to send OTP email: {e}")
             return False
-    
-    async def send_welcome_email(self, email: str, first_name: Optional[str] = None) -> bool:
+
+    async def send_welcome_email(
+        self, email: str, first_name: Optional[str] = None
+    ) -> bool:
         """Send welcome email after successful registration"""
         if not self.api_key:
             return False
-        
+
         try:
             import resend
+
             resend.api_key = self.api_key
-            
+
             name = first_name or "there"
-            
+
             html_content = f"""
             <!DOCTYPE html>
             <html>
@@ -179,7 +185,7 @@ Newsletter AI - Intelligent newsletter creation powered by AI
             </body>
             </html>
             """
-            
+
             params = {
                 "from": self.from_email,
                 "to": [email],
@@ -201,74 +207,75 @@ What's next?
 Our AI agents are ready to research, curate, and write personalized content just for you!
 
 Newsletter AI - Intelligent newsletter creation powered by AI
-                """.strip()
+                """.strip(),
             }
-            
+
             email_response = resend.Emails.send(params)
             print(f"✅ Welcome email sent to {email}: {email_response}")
             return True
-            
+
         except Exception as e:
             print(f"❌ Failed to send welcome email: {e}")
             return False
-    
+
     async def send_newsletter_email(
-        self, 
-        email: str, 
+        self,
+        email: str,
         newsletter_data: Dict[str, Any],
-        subject_line: Optional[str] = None
+        subject_line: Optional[str] = None,
     ) -> bool:
         """Send newsletter email using Resend API"""
         if not self.api_key:
             print("⚠️  Resend API key not configured")
             return False
-        
+
         try:
             import resend
+
             resend.api_key = self.api_key
-            
+
             # Extract newsletter content
             title = newsletter_data.get("title", "Your Newsletter")
             html_content = newsletter_data.get("html_content", "")
             plain_text = newsletter_data.get("plain_text", "")
-            
+
             # Use provided subject line or generate from title
             subject = subject_line or f"📧 {title}"
-            
+
             # If no HTML content provided, create basic template
             if not html_content:
                 html_content = self._create_basic_newsletter_template(newsletter_data)
-            
+
             # If no plain text provided, create from HTML
             if not plain_text:
                 plain_text = self._html_to_plain_text(html_content)
-            
+
             params = {
                 "from": self.from_email,
                 "to": [email],
                 "subject": subject,
                 "html": html_content,
-                "text": plain_text
+                "text": plain_text,
             }
-            
+
             email_response = resend.Emails.send(params)
             print(f"✅ Newsletter sent to {email}: {email_response}")
             return True
-            
+
         except ImportError:
             print("⚠️  Resend package not installed. Install with: pip install resend")
             return False
         except Exception as e:
             print(f"❌ Failed to send newsletter: {e}")
             return False
-    
+
     def _create_basic_newsletter_template(self, newsletter_data: Dict[str, Any]) -> str:
         """Create basic HTML template for newsletter"""
         title = newsletter_data.get("title", "Your Newsletter")
         introduction = newsletter_data.get("introduction", "")
         sections = newsletter_data.get("sections", [])
         conclusion = newsletter_data.get("conclusion", "")
-        
+
         html_template = f"""
         <!DOCTYPE html>
         <html>
@@ -375,15 +382,15 @@ Newsletter AI - Intelligent newsletter creation powered by AI
                 <div class="header">
                     <h1>📧 {title}</h1>
                     <p style="color: #e2e8f0; margin: 10px 0 0 0;">
-                        {datetime.now().strftime('%B %d, %Y')}
+                        {datetime.now().strftime("%B %d, %Y")}
                     </p>
                 </div>
                 <div class="content">
-                    {f'<div class="intro">{introduction}</div>' if introduction else ''}
+                    {f'<div class="intro">{introduction}</div>' if introduction else ""}
                     
-                    {''.join([self._format_section_for_email(section) for section in sections])}
+                    {"".join([self._format_section_for_email(section) for section in sections])}
                     
-                    {f'<div class="conclusion">{conclusion}</div>' if conclusion else ''}
+                    {f'<div class="conclusion">{conclusion}</div>' if conclusion else ""}
                 </div>
                 <div class="footer">
                     <p><strong>Newsletter AI</strong> - Personalized content powered by AI</p>
@@ -397,50 +404,51 @@ Newsletter AI - Intelligent newsletter creation powered by AI
         </body>
         </html>
         """.strip()
-        
+
         return html_template
-    
+
     def _format_section_for_email(self, section: Dict[str, Any]) -> str:
         """Format a newsletter section for email"""
         title = section.get("title", "")
         articles = section.get("articles", [])
-        
+
         section_html = f'<div class="section">'
         if title:
-            section_html += f'<h2>{title}</h2>'
-        
+            section_html += f"<h2>{title}</h2>"
+
         for article in articles:
             if isinstance(article, dict):
                 article_title = article.get("title", "")
                 article_content = article.get("content", "")
                 article_url = article.get("url", "")
-                
-                section_html += f'''
+
+                section_html += f"""
                 <div class="article">
                     <h3>{f'<a href="{article_url}">{article_title}</a>' if article_url else article_title}</h3>
                     <p>{article_content[:200]}...</p>
                 </div>
-                '''
+                """
             else:
                 # Handle string articles (from writing agent)
                 section_html += f'<div class="article">{str(article)}</div>'
-        
-        section_html += '</div>'
+
+        section_html += "</div>"
         return section_html
-    
+
     def _html_to_plain_text(self, html_content: str) -> str:
         """Convert HTML content to plain text"""
         # Simple HTML to text conversion
         import re
-        
+
         # Remove HTML tags
-        text = re.sub(r'<[^>]+>', '', html_content)
-        
+        text = re.sub(r"<[^>]+>", "", html_content)
+
         # Clean up whitespace
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"\s+", " ", text)
         text = text.strip()
-        
+
         return text
+
 
 # Global email service instance
 email_service = EmailService()
