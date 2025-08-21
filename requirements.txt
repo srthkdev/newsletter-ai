@@ -28,3 +28,6 @@ upstash-vector  # Upstash Vector for embeddings
 # Vector embeddings
 openai  # For embeddings
 sentence-transformers  # Alternative embedding model
+
+# Date parsing
+python-dateutil

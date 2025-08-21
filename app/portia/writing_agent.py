@@ -6,6 +6,8 @@ from datetime import datetime
 from portia import Plan, PlanBuilder
 from app.portia.base_agent import BaseNewsletterAgent
 from app.services.memory import memory_service
+from app.services.embeddings import embedding_service
+from app.services.rag_system import rag_system
 
 class NewsletterWritingAgent(BaseNewsletterAgent):
     """Portia agent for generating engaging blog-style newsletter content"""
@@ -131,7 +133,7 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
             return await self._execute_full_writing(context)
     
     async def _generate_newsletter(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate complete newsletter content"""
+        """Generate complete newsletter content with RAG integration"""
         try:
             articles = context.get("articles", [])
             user_preferences = context.get("user_preferences", {})
@@ -148,17 +150,25 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
             # Get user context from memory
             user_context = await self._get_user_writing_context(user_id)
             
-            # Generate newsletter structure
-            newsletter_structure = await self._create_newsletter_structure(
-                articles, user_preferences, custom_prompt, user_context
+            # Enhance with RAG context
+            rag_enhancement = await self._enhance_content_with_rag(
+                user_id, articles, user_preferences
             )
             
-            # Generate content for each section
+            # Generate newsletter structure with RAG context
+            newsletter_structure = await self._create_newsletter_structure(
+                articles, user_preferences, custom_prompt, user_context, rag_enhancement
+            )
+            
+            # Generate content for each section with RAG context
             newsletter_content = await self._generate_content_sections(
-                newsletter_structure, user_preferences, user_context
+                newsletter_structure, user_preferences, user_context, rag_enhancement
             )
             
             # Create final newsletter
+            word_count = self._count_words(newsletter_content)
+            estimated_read_time = self._estimate_read_time(newsletter_content)
+            
             final_newsletter = {
                 "title": newsletter_structure.get("title", "Your Personalized Newsletter"),
                 "introduction": newsletter_content.get("introduction", ""),
@@ -167,16 +177,21 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
                 "metadata": {
                     "generated_at": datetime.utcnow().isoformat(),
                     "article_count": len(articles),
+                    "word_count": word_count,
+                    "estimated_read_time": estimated_read_time,
                     "user_preferences": user_preferences,
-                    "custom_prompt": custom_prompt
+                    "custom_prompt": custom_prompt,
+                    "rag_context_used": rag_enhancement.get("rag_available", False),
+                    "personalization_level": rag_enhancement.get("recommendations", {}).get("personalization_level", "basic")
                 }
             }
             
             return {
                 "success": True,
                 "newsletter": final_newsletter,
-                "word_count": self._count_words(newsletter_content),
-                "estimated_read_time": self._estimate_read_time(newsletter_content)
+                "word_count": word_count,
+                "estimated_read_time": estimated_read_time,
+                "rag_context": rag_enhancement
             }
             
         except Exception as e:
@@ -265,18 +280,30 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
             if not result["success"]:
                 return result
             
-            # Store newsletter in user's history
+            # Store newsletter in user's history and embed for RAG
             user_id = context.get("user_id")
             if user_id and result.get("result"):
+                newsletter_id = f"newsletter_{datetime.utcnow().isoformat()}"
+                newsletter_data = {
+                    "id": newsletter_id,
+                    "content": result["result"],
+                    "generated_at": datetime.utcnow().isoformat(),
+                    "articles_used": len(context.get("articles", [])),
+                    "user_preferences": context.get("user_preferences", {}),
+                    "custom_prompt": context.get("custom_prompt")
+                }
+                
+                # Store in memory
                 await self.memory.store_newsletter_history(
                     user_id=user_id,
-                    newsletter_data={
-                        "id": f"newsletter_{datetime.utcnow().isoformat()}",
-                        "content": result["result"],
-                        "generated_at": datetime.utcnow().isoformat(),
-                        "articles_used": len(context.get("articles", [])),
-                        "user_preferences": context.get("user_preferences", {})
-                    }
+                    newsletter_data=newsletter_data
+                )
+                
+                # Embed newsletter content for RAG using comprehensive system
+                await rag_system.embed_and_store_newsletter(
+                    newsletter_id=newsletter_id,
+                    user_id=user_id,
+                    newsletter_data=newsletter_data
                 )
             
             return result
@@ -285,7 +312,7 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
             return await self.handle_error(e, context)
     
     async def _get_user_writing_context(self, user_id: str) -> Dict[str, Any]:
-        """Get user's writing context from memory"""
+        """Get user's writing context from memory and RAG"""
         if not user_id:
             return {}
         
@@ -298,10 +325,14 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
         # Get recent newsletter history
         recent_newsletters = await self.memory.get_newsletter_history(user_id, limit=5)
         
+        # Get engagement metrics for personalization
+        engagement_metrics = await self.memory.get_engagement_metrics(user_id)
+        
         return {
             "preferences": preferences or {},
             "reading_patterns": reading_patterns or {},
             "recent_newsletters": recent_newsletters,
+            "engagement_metrics": engagement_metrics or {},
             "personalization_available": bool(preferences or reading_patterns)
         }
     
@@ -310,7 +341,8 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
         articles: List[Dict[str, Any]], 
         user_preferences: Dict[str, Any],
         custom_prompt: Optional[str],
-        user_context: Dict[str, Any]
+        user_context: Dict[str, Any],
+        rag_enhancement: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Create the structure for the newsletter"""
         
@@ -347,14 +379,15 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
         self,
         structure: Dict[str, Any],
         user_preferences: Dict[str, Any],
-        user_context: Dict[str, Any]
+        user_context: Dict[str, Any],
+        rag_enhancement: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Generate content for each section of the newsletter"""
         
         tone = user_preferences.get("tone", "professional")
         
-        # Generate introduction
-        introduction = self._generate_introduction(structure, tone, user_context)
+        # Generate introduction with RAG context
+        introduction = self._generate_introduction(structure, tone, user_context, rag_enhancement)
         
         # Generate sections
         sections = []
@@ -403,7 +436,8 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
         self, 
         structure: Dict[str, Any], 
         tone: str, 
-        user_context: Dict[str, Any]
+        user_context: Dict[str, Any],
+        rag_enhancement: Optional[Dict[str, Any]] = None
     ) -> str:
         """Generate newsletter introduction"""
         
@@ -420,10 +454,22 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
             greeting = "Good morning,"
             style = "professional and informative"
         
+        # Check if we have RAG context for personalization
+        personalization_note = ""
+        if rag_enhancement and rag_enhancement.get("rag_available"):
+            similar_count = len(rag_enhancement.get("similar_content", []))
+            personalization_level = rag_enhancement.get("recommendations", {}).get("personalization_level", "basic")
+            
+            if similar_count > 0:
+                if personalization_level == "high":
+                    personalization_note = f" Based on your reading history of {similar_count} similar newsletters, I've carefully tailored this content to match your interests."
+                else:
+                    personalization_note = f" I've personalized this content based on your preferences and reading patterns."
+        
         intro_template = f"""
 {greeting}
 
-Welcome to your personalized newsletter! I've curated {article_count} interesting articles covering {', '.join(themes[:3]) if themes else 'various topics'} that align with your interests.
+Welcome to your personalized newsletter! I've curated {article_count} interesting articles covering {', '.join(themes[:3]) if themes else 'various topics'} that align with your interests.{personalization_note}
 
 This week's highlights include some fascinating developments that I think you'll find valuable. Let's dive in!
         """.strip()
@@ -482,49 +528,263 @@ Your Newsletter AI
         return conclusion
     
     def _generate_html_email(self, newsletter: Dict[str, Any]) -> str:
-        """Generate HTML email version of newsletter"""
+        """Generate HTML email version of newsletter with blog-style formatting"""
         
         title = newsletter.get("title", "Newsletter")
         introduction = newsletter.get("introduction", "")
         sections = newsletter.get("sections", [])
         conclusion = newsletter.get("conclusion", "")
+        metadata = newsletter.get("metadata", {})
+        
+        # Get personalization info
+        personalization_level = metadata.get("personalization_level", "basic")
+        rag_context_used = metadata.get("rag_context_used", False)
         
         html_template = f"""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
     <title>{title}</title>
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }}
-        h1 {{ color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
-        h2 {{ color: #34495e; margin-top: 30px; }}
-        a {{ color: #3498db; text-decoration: none; }}
-        a:hover {{ text-decoration: underline; }}
-        .intro {{ background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-        .section {{ margin: 30px 0; }}
-        .article {{ margin: 20px 0; padding: 15px; border-left: 4px solid #3498db; background-color: #f8f9fa; }}
-        .conclusion {{ background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin: 30px 0; }}
-        .footer {{ text-align: center; color: #7f8c8d; font-size: 12px; margin-top: 40px; }}
+        /* Reset styles */
+        body, table, td, p, a, li, blockquote {{ -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }}
+        table, td {{ mso-table-lspace: 0pt; mso-table-rspace: 0pt; }}
+        img {{ -ms-interpolation-mode: bicubic; }}
+        
+        /* Base styles */
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+        }}
+        
+        .email-container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }}
+        
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }}
+        
+        .header h1 {{
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }}
+        
+        .personalization-badge {{
+            display: inline-block;
+            background-color: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        
+        .content {{
+            padding: 30px 20px;
+        }}
+        
+        .intro {{
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }}
+        
+        .section {{
+            margin: 40px 0;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 30px;
+        }}
+        
+        .section:last-of-type {{
+            border-bottom: none;
+        }}
+        
+        .section h2 {{
+            color: #495057;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }}
+        
+        .article {{
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            border-radius: 0 8px 8px 0;
+            transition: all 0.3s ease;
+        }}
+        
+        .article:hover {{
+            background-color: #e9ecef;
+            border-left-color: #0056b3;
+        }}
+        
+        .article h3 {{
+            margin: 0 0 10px 0;
+            color: #212529;
+            font-size: 18px;
+            font-weight: 600;
+        }}
+        
+        .article p {{
+            margin: 0;
+            color: #6c757d;
+            font-size: 14px;
+            line-height: 1.5;
+        }}
+        
+        .article a {{
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }}
+        
+        .article a:hover {{
+            text-decoration: underline;
+            color: #0056b3;
+        }}
+        
+        .conclusion {{
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+            text-align: center;
+            color: #495057;
+        }}
+        
+        .footer {{
+            background-color: #343a40;
+            color: #adb5bd;
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+        }}
+        
+        .footer p {{
+            margin: 5px 0;
+        }}
+        
+        .footer a {{
+            color: #6c757d;
+            text-decoration: none;
+        }}
+        
+        .stats {{
+            display: flex;
+            justify-content: space-around;
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #6c757d;
+        }}
+        
+        .stat {{
+            text-align: center;
+        }}
+        
+        .stat-number {{
+            font-weight: bold;
+            color: #495057;
+            font-size: 16px;
+        }}
+        
+        /* Mobile responsiveness */
+        @media only screen and (max-width: 600px) {{
+            .email-container {{
+                width: 100% !important;
+            }}
+            
+            .content {{
+                padding: 20px 15px !important;
+            }}
+            
+            .header h1 {{
+                font-size: 24px !important;
+            }}
+            
+            .section h2 {{
+                font-size: 20px !important;
+            }}
+            
+            .stats {{
+                flex-direction: column !important;
+            }}
+            
+            .stat {{
+                margin: 5px 0 !important;
+            }}
+        }}
     </style>
 </head>
 <body>
-    <h1>{title}</h1>
-    
-    <div class="intro">
-        {introduction.replace(chr(10), '<br>')}
-    </div>
-    
-    {''.join([self._format_section_html(section) for section in sections])}
-    
-    <div class="conclusion">
-        {conclusion.replace(chr(10), '<br>')}
-    </div>
-    
-    <div class="footer">
-        <p>Newsletter AI - Personalized content powered by AI</p>
-        <p>Generated on {datetime.utcnow().strftime('%B %d, %Y')}</p>
+    <div class="email-container">
+        <div class="header">
+            <h1>{title}</h1>
+            {f'<div class="personalization-badge">Personalized • {personalization_level.title()}</div>' if rag_context_used else ''}
+        </div>
+        
+        <div class="content">
+            <div class="intro">
+                {introduction.replace(chr(10), '<br>')}
+            </div>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number">{metadata.get('article_count', 0)}</div>
+                    <div>Articles</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">{metadata.get('estimated_read_time', 5)}</div>
+                    <div>Min Read</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">{datetime.utcnow().strftime('%b %d')}</div>
+                    <div>Generated</div>
+                </div>
+            </div>
+            
+            {''.join([self._format_section_html(section) for section in sections])}
+            
+            <div class="conclusion">
+                {conclusion.replace(chr(10), '<br>')}
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Newsletter AI</strong> - Personalized content powered by AI</p>
+            <p>Generated on {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}</p>
+            <p>
+                <a href="#" style="color: #6c757d;">Unsubscribe</a> | 
+                <a href="#" style="color: #6c757d;">Update Preferences</a> | 
+                <a href="#" style="color: #6c757d;">View Online</a>
+            </p>
+        </div>
     </div>
 </body>
 </html>
@@ -533,17 +793,48 @@ Your Newsletter AI
         return html_template
     
     def _format_section_html(self, section: Dict[str, Any]) -> str:
-        """Format a section for HTML email"""
+        """Format a section for HTML email with enhanced blog-style formatting"""
         title = section.get("title", "")
         articles = section.get("articles", [])
         
         section_html = f'<div class="section"><h2>{title}</h2>'
         
         for article in articles:
-            section_html += f'<div class="article">{article}</div>'
+            if isinstance(article, str):
+                # Parse article content for better formatting
+                article_html = self._format_article_html(article)
+                section_html += f'<div class="article">{article_html}</div>'
+            else:
+                section_html += f'<div class="article">{str(article)}</div>'
         
         section_html += '</div>'
         return section_html
+    
+    def _format_article_html(self, article_content: str) -> str:
+        """Format individual article content for HTML"""
+        # Simple parsing to extract title and content
+        lines = article_content.split('\n')
+        
+        if not lines:
+            return article_content
+        
+        # Look for markdown-style links [title](url)
+        import re
+        link_pattern = r'\*\*\[(.*?)\]\((.*?)\)\*\*'
+        match = re.search(link_pattern, lines[0])
+        
+        if match:
+            title = match.group(1)
+            url = match.group(2)
+            content = '\n'.join(lines[1:]).strip()
+            
+            return f'''
+                <h3><a href="{url}" target="_blank">{title}</a></h3>
+                <p>{content}</p>
+            '''
+        else:
+            # Fallback formatting
+            return f'<p>{article_content.replace(chr(10), '<br>')}</p>'
     
     def _generate_plain_text_email(self, newsletter: Dict[str, Any]) -> str:
         """Generate plain text version of newsletter"""
@@ -609,6 +900,64 @@ Your Newsletter AI
         word_count = self._count_words(content)
         # Average reading speed: 200-250 words per minute
         return max(1, round(word_count / 225))
+    
+    async def _embed_newsletter_for_rag(self, newsletter_id: str, user_id: str, 
+                                       content: str, metadata: Dict[str, Any]) -> bool:
+        """Embed newsletter content for RAG retrieval"""
+        try:
+            return await embedding_service.embed_newsletter(
+                newsletter_id=newsletter_id,
+                user_id=user_id,
+                content=content,
+                metadata=metadata
+            )
+        except Exception as e:
+            print(f"Failed to embed newsletter for RAG: {e}")
+            return False
+    
+    async def _get_rag_context(self, user_id: str, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+        """Get relevant context from user's newsletter history using RAG"""
+        try:
+            return await embedding_service.search_similar_content(
+                query=query,
+                user_id=user_id,
+                top_k=top_k
+            )
+        except Exception as e:
+            print(f"Failed to get RAG context: {e}")
+            return []
+    
+    async def _get_personalized_suggestions(self, user_id: str, topics: List[str]) -> List[str]:
+        """Get personalized content suggestions based on RAG analysis"""
+        try:
+            return await embedding_service.get_user_content_suggestions(
+                user_id=user_id,
+                topics=topics
+            )
+        except Exception as e:
+            print(f"Failed to get personalized suggestions: {e}")
+            return []
+    
+    async def _enhance_content_with_rag(self, user_id: str, articles: List[Dict[str, Any]], 
+                                       user_preferences: Dict[str, Any]) -> Dict[str, Any]:
+        """Enhance content generation with comprehensive RAG context"""
+        try:
+            # Use the comprehensive RAG system
+            return await rag_system.generate_personalized_content_context(
+                user_id=user_id,
+                articles=articles,
+                user_preferences=user_preferences
+            )
+        
+        except Exception as e:
+            print(f"Failed to enhance content with RAG: {e}")
+            return {
+                "rag_available": False,
+                "similar_content": [],
+                "recommendations": {},
+                "personalization_insights": [f"RAG enhancement failed: {e}"],
+                "content_strategy": {}
+            }
 
 # Global writing agent instance
 writing_agent = NewsletterWritingAgent()
