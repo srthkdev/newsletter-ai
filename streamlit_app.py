@@ -362,11 +362,11 @@ def show_success_page():
         
         with col_btn1:
             if st.button("📊 Go to Dashboard", type="primary", use_container_width=True):
-                st.info("🚧 Dashboard coming soon! This will redirect to your personalized dashboard.")
+                st.switch_page("pages/📊_Dashboard.py")
         
         with col_btn2:
             if st.button("⚙️ Set Preferences", use_container_width=True):
-                st.info("🚧 Preferences page coming soon! This will let you customize your newsletter settings.")
+                st.switch_page("pages/⚙️_Preferences.py")
         
         st.markdown("---")
         
