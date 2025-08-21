@@ -34,21 +34,18 @@ class Settings(BaseSettings):
     # Tavily API
     TAVILY_API_KEY: Optional[str] = None
     
-    # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8501"]
+    # CORS - using string to avoid JSON parsing issues
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8501"
     
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    @classmethod
-    def assemble_cors_origins(cls, v):
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
-            return v
-        raise ValueError(v)
+    def get_cors_origins(self) -> List[str]:
+        """Get CORS origins as a list"""
+        if not self.BACKEND_CORS_ORIGINS:
+            return ["http://localhost:3000", "http://localhost:8501"]
+        return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",")]
     
     class Config:
         env_file = ".env"
