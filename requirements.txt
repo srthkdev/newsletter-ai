@@ -1,0 +1,29 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+sqlalchemy
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+httpx
+
+# Portia AI SDK
+portia-sdk-python
+
+# External APIs
+resend
+tavily-python
+
+# Streamlit for frontend
+streamlit
+
+# Cloud services
+psycopg2-binary  # PostgreSQL adapter for Neon
+upstash-redis  # Upstash Redis client
+upstash-vector  # Upstash Vector for embeddings
+
+# Vector embeddings
+openai  # For embeddings
+sentence-transformers  # Alternative embedding model
