@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.api_v1.endpoints import auth, newsletters, preferences, users
+from app.api.api_v1.endpoints import auth, newsletters, preferences, users, email
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ api_router.include_router(
 api_router.include_router(
     preferences.router, prefix="/preferences", tags=["preferences"]
 )
+api_router.include_router(email.router, prefix="/email", tags=["email"])

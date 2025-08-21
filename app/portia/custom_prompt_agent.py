@@ -476,6 +476,91 @@ class CustomPromptAgent(BaseNewsletterAgent):
 
         return " ".join(enhanced_parts)
 
+    async def enhance_prompt_with_rag(
+        self, 
+        prompt: str, 
+        user_id: str, 
+        user_preferences: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Enhance prompt using RAG system for context-aware improvements"""
+        try:
+            from app.services.rag_system import rag_system
+            
+            # Get RAG context for the prompt
+            rag_context = await rag_system.generate_personalized_content_context(
+                user_id=user_id,
+                articles=[],  # No articles yet, just getting context
+                user_preferences=user_preferences
+            )
+            
+            # Analyze the original prompt
+            analysis = await self._analyze_prompt_content(prompt, user_preferences)
+            
+            # Get user context from memory
+            user_context = await self._get_user_context(user_id)
+            
+            # Enhance with RAG insights
+            enhanced_prompt = prompt
+            rag_enhancements = []
+            
+            # Add insights from similar content
+            if rag_context.get("rag_available") and rag_context.get("similar_content"):
+                similar_content = rag_context["similar_content"][:3]  # Top 3 similar
+                
+                # Extract common themes from similar content
+                common_topics = set()
+                for content in similar_content:
+                    topics = content.get("topics", [])
+                    common_topics.update(topics)
+                
+                # Add relevant topics not in original prompt
+                detected_topics = analysis.get("detected_topics", [])
+                missing_relevant_topics = [
+                    topic for topic in common_topics 
+                    if topic not in detected_topics and topic in user_preferences.get("topics", [])
+                ]
+                
+                if missing_relevant_topics:
+                    enhancement = f"Based on your reading history, also consider: {', '.join(missing_relevant_topics[:2])}"
+                    enhanced_prompt += f" {enhancement}"
+                    rag_enhancements.append("Added topics from reading history")
+            
+            # Add content strategy recommendations
+            content_strategy = rag_context.get("content_strategy", {})
+            if content_strategy:
+                recommended_tone = content_strategy.get("recommended_tone")
+                if recommended_tone and recommended_tone not in prompt.lower():
+                    enhanced_prompt += f" Use a {recommended_tone} tone."
+                    rag_enhancements.append("Added recommended tone from history")
+                
+                focus_topics = content_strategy.get("focus_topics", [])
+                if focus_topics:
+                    detected_topics = analysis.get("detected_topics", [])
+                    new_focus_topics = [t for t in focus_topics if t not in detected_topics]
+                    if new_focus_topics:
+                        enhanced_prompt += f" Pay special attention to {', '.join(new_focus_topics[:2])}."
+                        rag_enhancements.append("Added focus topics from analysis")
+            
+            return {
+                "original_prompt": prompt,
+                "enhanced_prompt": enhanced_prompt,
+                "rag_available": rag_context.get("rag_available", False),
+                "enhancements_applied": rag_enhancements,
+                "rag_insights": rag_context.get("personalization_insights", []),
+                "content_strategy": content_strategy,
+                "similar_content_count": len(rag_context.get("similar_content", [])),
+            }
+            
+        except Exception as e:
+            print(f"❌ RAG enhancement failed: {e}")
+            return {
+                "original_prompt": prompt,
+                "enhanced_prompt": prompt,
+                "rag_available": False,
+                "enhancements_applied": [],
+                "error": str(e),
+            }
+
     async def _generate_research_parameters(
         self, enhanced_prompt: str, analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -590,6 +675,94 @@ class CustomPromptAgent(BaseNewsletterAgent):
 
         return enhancements
 
+    async def process_custom_prompt_full(
+        self, 
+        user_id: str, 
+        custom_prompt: str, 
+        user_preferences: Dict[str, Any],
+        use_rag: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Complete custom prompt processing with full integration
+        
+        This is the main method that should be called by API endpoints
+        """
+        try:
+            # Step 1: Validate the prompt
+            validation = await self.validate_prompt(custom_prompt)
+            if not validation["is_valid"]:
+                return {
+                    "success": False,
+                    "error": "Invalid prompt",
+                    "validation": validation,
+                }
+
+            # Step 2: Analyze the prompt
+            analysis = await self._analyze_prompt_content(custom_prompt, user_preferences)
+
+            # Step 3: Get user context
+            user_context = await self._get_user_context(user_id)
+
+            # Step 4: Enhance with RAG if available and requested
+            rag_enhancement = None
+            if use_rag:
+                rag_enhancement = await self.enhance_prompt_with_rag(
+                    custom_prompt, user_id, user_preferences
+                )
+
+            # Step 5: Enhance with traditional context
+            enhanced_prompt = await self._enhance_prompt_with_context(
+                rag_enhancement["enhanced_prompt"] if rag_enhancement else custom_prompt,
+                analysis,
+                user_context,
+                user_preferences
+            )
+
+            # Step 6: Generate research parameters
+            research_params = await self._generate_research_parameters(enhanced_prompt, analysis)
+
+            # Step 7: Generate writing guidelines
+            writing_guidelines = await self._generate_writing_guidelines(enhanced_prompt, analysis)
+
+            # Step 8: Store processing results
+            processing_data = {
+                "original_prompt": custom_prompt,
+                "enhanced_prompt": enhanced_prompt,
+                "analysis": analysis,
+                "research_parameters": research_params,
+                "writing_guidelines": writing_guidelines,
+                "rag_enhancement": rag_enhancement,
+                "validation": validation,
+                "processed_at": datetime.utcnow().isoformat(),
+            }
+
+            await self._store_prompt_processing(user_id, processing_data)
+
+            return {
+                "success": True,
+                "original_prompt": custom_prompt,
+                "enhanced_prompt": enhanced_prompt,
+                "analysis": analysis,
+                "research_parameters": research_params,
+                "writing_guidelines": writing_guidelines,
+                "validation": validation,
+                "rag_enhancement": rag_enhancement,
+                "user_context_available": bool(user_context.get("has_history")),
+                "processing_metadata": {
+                    "processed_at": datetime.utcnow().isoformat(),
+                    "user_id": user_id,
+                    "rag_used": use_rag and rag_enhancement and rag_enhancement.get("rag_available", False),
+                    "enhancements_count": len(rag_enhancement.get("enhancements_applied", [])) if rag_enhancement else 0,
+                },
+            }
+
+        except Exception as e:
+            return await self.handle_error(e, {
+                "user_id": user_id,
+                "custom_prompt": custom_prompt,
+                "operation": "process_custom_prompt_full"
+            })
+
     async def get_prompt_examples(self) -> List[Dict[str, Any]]:
         """Get example prompts for user guidance"""
         return [
@@ -597,33 +770,139 @@ class CustomPromptAgent(BaseNewsletterAgent):
                 "category": "Technology",
                 "prompt": "Create a newsletter about AI breakthroughs this week with a technical tone",
                 "description": "Focus on recent AI developments with detailed analysis",
+                "tags": ["AI", "technical", "weekly"],
             },
             {
                 "category": "Business",
                 "prompt": "Focus on startup funding news with a casual, conversational style",
                 "description": "Cover venture capital and startup news in an approachable way",
+                "tags": ["startups", "funding", "casual"],
             },
             {
                 "category": "Science",
                 "prompt": "Summarize the latest developments in renewable energy for business professionals",
                 "description": "Professional overview of clean energy advances",
+                "tags": ["renewable energy", "professional", "business"],
             },
             {
                 "category": "General",
                 "prompt": "Generate a newsletter about space exploration with an enthusiastic tone",
                 "description": "Exciting updates from space industry and research",
+                "tags": ["space", "enthusiastic", "exploration"],
             },
             {
                 "category": "Security",
                 "prompt": "Cover cybersecurity trends with practical tips for developers",
                 "description": "Security news with actionable developer insights",
+                "tags": ["cybersecurity", "developers", "practical"],
             },
             {
                 "category": "Finance",
                 "prompt": "Create content about fintech innovations with a professional tone",
                 "description": "Financial technology updates for business audience",
+                "tags": ["fintech", "professional", "innovation"],
+            },
+            {
+                "category": "Health",
+                "prompt": "Focus on healthcare technology breakthroughs with medical applications",
+                "description": "Medical technology advances and their clinical impact",
+                "tags": ["healthcare", "medical", "technology"],
+            },
+            {
+                "category": "Marketing",
+                "prompt": "Cover digital marketing trends and social media updates for marketers",
+                "description": "Latest marketing strategies and platform changes",
+                "tags": ["marketing", "social media", "trends"],
             },
         ]
+
+    async def get_prompt_placeholders(self) -> List[str]:
+        """Get placeholder text examples for prompt input"""
+        return [
+            "Create a newsletter about AI breakthroughs this week with a technical tone",
+            "Focus on startup funding news with a casual, conversational style",
+            "Summarize the latest developments in renewable energy for business professionals",
+            "Generate a newsletter about space exploration with an enthusiastic tone",
+            "Cover cybersecurity trends with practical tips for developers",
+            "Create content about fintech innovations with a professional tone",
+            "Focus on healthcare technology breakthroughs with medical applications",
+            "Cover digital marketing trends and social media updates for marketers",
+            "Generate a newsletter about climate change solutions with an optimistic tone",
+            "Focus on quantum computing advances with explanations for non-experts",
+        ]
+
+    async def validate_prompt(self, prompt: str) -> Dict[str, Any]:
+        """Validate a custom prompt and provide feedback"""
+        validation_result = {
+            "is_valid": True,
+            "score": 0,
+            "feedback": [],
+            "suggestions": [],
+            "warnings": [],
+        }
+
+        if not prompt or not prompt.strip():
+            validation_result["is_valid"] = False
+            validation_result["feedback"].append("Prompt cannot be empty")
+            return validation_result
+
+        prompt_lower = prompt.lower().strip()
+        word_count = len(prompt.split())
+
+        # Check length
+        if word_count < 5:
+            validation_result["warnings"].append("Prompt is quite short - consider adding more details")
+            validation_result["score"] -= 10
+        elif word_count >= 10:
+            validation_result["score"] += 20
+
+        # Check for topic specificity
+        topic_keywords = [
+            "technology", "tech", "ai", "artificial intelligence", "business", "startup",
+            "science", "health", "finance", "marketing", "cybersecurity", "space"
+        ]
+        has_topic = any(keyword in prompt_lower for keyword in topic_keywords)
+        if has_topic:
+            validation_result["score"] += 15
+            validation_result["feedback"].append("Good topic specificity detected")
+        else:
+            validation_result["suggestions"].append("Consider specifying a topic area (e.g., technology, business, science)")
+
+        # Check for tone specification
+        tone_keywords = ["professional", "casual", "technical", "friendly", "formal", "conversational"]
+        has_tone = any(tone in prompt_lower for tone in tone_keywords)
+        if has_tone:
+            validation_result["score"] += 15
+            validation_result["feedback"].append("Tone preference specified")
+        else:
+            validation_result["suggestions"].append("Consider specifying a tone (e.g., professional, casual, technical)")
+
+        # Check for time frame
+        time_keywords = ["today", "this week", "recent", "latest", "current", "trending"]
+        has_timeframe = any(time_word in prompt_lower for time_word in time_keywords)
+        if has_timeframe:
+            validation_result["score"] += 10
+            validation_result["feedback"].append("Time frame specified")
+
+        # Check for action words
+        action_keywords = ["create", "generate", "focus", "cover", "include", "summarize"]
+        has_action = any(action in prompt_lower for action in action_keywords)
+        if has_action:
+            validation_result["score"] += 10
+        else:
+            validation_result["suggestions"].append("Consider starting with an action word (e.g., 'Create', 'Focus on', 'Cover')")
+
+        # Overall score assessment
+        if validation_result["score"] >= 40:
+            validation_result["feedback"].append("Excellent prompt! Very specific and actionable.")
+        elif validation_result["score"] >= 25:
+            validation_result["feedback"].append("Good prompt with clear direction.")
+        elif validation_result["score"] >= 10:
+            validation_result["feedback"].append("Decent prompt, but could be more specific.")
+        else:
+            validation_result["warnings"].append("Prompt could be much more specific and detailed.")
+
+        return validation_result
 
 
 # Global custom prompt agent instance

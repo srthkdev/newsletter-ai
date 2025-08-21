@@ -192,6 +192,11 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
                 },
             }
 
+            # Apply RAG-based content strategy enhancements
+            final_newsletter = await self._apply_rag_content_strategy(
+                final_newsletter, rag_enhancement
+            )
+
             return {
                 "success": True,
                 "newsletter": final_newsletter,
@@ -252,7 +257,7 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
             return await self.handle_error(e, context)
 
     async def _format_for_email(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Format newsletter content for email delivery"""
+        """Format newsletter content for email delivery with blog-style templates"""
         try:
             newsletter = context.get("newsletter", {})
 
@@ -262,17 +267,16 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
                     "error": "No newsletter content provided for formatting",
                 }
 
-            # Generate HTML version
-            html_content = self._generate_html_email(newsletter)
-
-            # Generate plain text version
-            plain_text = self._generate_plain_text_email(newsletter)
+            # Generate blog-style templates
+            templates = self._create_blog_style_template(newsletter, "modern")
 
             return {
                 "success": True,
-                "html_content": html_content,
-                "plain_text": plain_text,
+                "html_content": templates["html"],
+                "plain_text": templates["plain_text"],
+                "markdown_content": templates["markdown"],
                 "newsletter_data": newsletter,
+                "template_type": "blog_style_modern",
             }
 
         except Exception as e:
@@ -403,7 +407,9 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
         # Generate sections
         sections = []
         for section in structure.get("sections", []):
-            section_content = self._generate_section_content(section, tone)
+            section_content = self._generate_section_content(
+                section, tone, rag_enhancement
+            )
             sections.append(section_content)
 
         # Generate conclusion
@@ -452,7 +458,7 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
         user_context: Dict[str, Any],
         rag_enhancement: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Generate newsletter introduction"""
+        """Generate newsletter introduction with enhanced RAG personalization"""
 
         themes = structure.get("themes", [])
         article_count = structure.get("total_articles", 0)
@@ -467,24 +473,48 @@ class NewsletterWritingAgent(BaseNewsletterAgent):
             greeting = "Good morning,"
             style = "professional and informative"
 
-        # Check if we have RAG context for personalization
+        # Enhanced personalization with RAG context
         personalization_note = ""
+        reading_insights = ""
+
         if rag_enhancement and rag_enhancement.get("rag_available"):
             similar_count = len(rag_enhancement.get("similar_content", []))
             personalization_level = rag_enhancement.get("recommendations", {}).get(
                 "personalization_level", "basic"
             )
 
+            # Add reading patterns insights
+            reading_patterns = rag_enhancement.get("reading_patterns")
+            if reading_patterns:
+                preferred_topics = reading_patterns.get("preferred_topics", [])
+                if preferred_topics and any(
+                    topic in themes for topic in preferred_topics
+                ):
+                    matching_topics = [
+                        topic for topic in preferred_topics if topic in themes
+                    ]
+                    reading_insights = f" I noticed you particularly enjoy {', '.join(matching_topics[:2])}, so I've included extra coverage on those topics."
+
             if similar_count > 0:
                 if personalization_level == "high":
-                    personalization_note = f" Based on your reading history of {similar_count} similar newsletters, I've carefully tailored this content to match your interests."
+                    personalization_note = f" Based on your reading history of {similar_count} similar newsletters, I've carefully tailored this content to match your interests.{reading_insights}"
                 else:
-                    personalization_note = f" I've personalized this content based on your preferences and reading patterns."
+                    personalization_note = f" I've personalized this content based on your preferences and reading patterns.{reading_insights}"
+
+        # Add engagement-based personalization
+        engagement_metrics = (
+            rag_enhancement.get("engagement_metrics") if rag_enhancement else None
+        )
+        engagement_note = ""
+        if engagement_metrics:
+            total_opens = engagement_metrics.get("total_opens", 0)
+            if total_opens > 5:
+                engagement_note = f" Thanks for being such an engaged reader - this is newsletter #{total_opens + 1} for you!"
 
         intro_template = f"""
 {greeting}
 
-Welcome to your personalized newsletter! I've curated {article_count} interesting articles covering {", ".join(themes[:3]) if themes else "various topics"} that align with your interests.{personalization_note}
+Welcome to your personalized newsletter! I've curated {article_count} interesting articles covering {", ".join(themes[:3]) if themes else "various topics"} that align with your interests.{personalization_note}{engagement_note}
 
 This week's highlights include some fascinating developments that I think you'll find valuable. Let's dive in!
         """.strip()
@@ -492,24 +522,65 @@ This week's highlights include some fascinating developments that I think you'll
         return intro_template
 
     def _generate_section_content(
-        self, section: Dict[str, Any], tone: str
+        self,
+        section: Dict[str, Any],
+        tone: str,
+        rag_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Generate content for a newsletter section"""
+        """Generate content for a newsletter section with RAG-enhanced insights"""
 
         section_title = section.get("title", "Updates")
         articles = section.get("articles", [])
 
-        # Create section introduction
+        # Create section introduction with RAG insights
         section_intro = f"## {section_title}\n\n"
 
-        # Process each article
+        # Add RAG-based section insights
+        if rag_context and rag_context.get("rag_available"):
+            similar_content = rag_context.get("similar_content", [])
+            topic_suggestions = rag_context.get("recommendations", {}).get(
+                "topic_suggestions", []
+            )
+
+            # Check if this section topic has been covered before
+            relevant_history = [
+                content
+                for content in similar_content
+                if section_title.lower() in content.get("content_preview", "").lower()
+            ]
+
+            if relevant_history and tone == "casual":
+                section_intro += f"You've shown interest in {section_title.lower()} before, so here's what's new:\n\n"
+            elif relevant_history and tone == "professional":
+                section_intro += f"Building on your previous interest in {section_title.lower()}, here are the latest developments:\n\n"
+
+        # Process each article with enhanced summaries
         article_summaries = []
-        for article in articles:
+        for i, article in enumerate(articles):
             title = article.get("title", "Untitled")
             url = article.get("url", "")
-            content = article.get("content", "")[:200] + "..."  # Truncate content
+            content = article.get("content", "")
 
-            summary = f"**[{title}]({url})**\n\n{content}\n\n"
+            # Create more engaging summary based on tone
+            if tone == "casual":
+                summary_intro = "🔍 " if i == 0 else "📌 "
+            elif tone == "technical":
+                summary_intro = f"**Analysis {i + 1}:** "
+            else:
+                summary_intro = f"**Key Insight {i + 1}:** "
+
+            # Truncate content intelligently (try to end at sentence)
+            truncated_content = content[:200]
+            if len(content) > 200:
+                last_period = truncated_content.rfind(".")
+                if (
+                    last_period > 100
+                ):  # Only use if we have a reasonable amount of content
+                    truncated_content = truncated_content[: last_period + 1]
+                else:
+                    truncated_content += "..."
+
+            summary = f"{summary_intro}**[{title}]({url})**\n\n{truncated_content}\n\n"
             article_summaries.append(summary)
 
         return {
@@ -556,6 +627,23 @@ Your Newsletter AI
         # Get personalization info
         personalization_level = metadata.get("personalization_level", "basic")
         rag_context_used = metadata.get("rag_context_used", False)
+
+        # Enhanced personalization badges
+        personalization_badges = []
+        if rag_context_used:
+            if personalization_level == "high":
+                personalization_badges.append("Highly Personalized")
+            elif personalization_level == "medium":
+                personalization_badges.append("Personalized")
+            else:
+                personalization_badges.append("Tailored")
+
+        if metadata.get("custom_prompt"):
+            personalization_badges.append("Custom Request")
+
+        badge_text = (
+            " • ".join(personalization_badges) if personalization_badges else "Standard"
+        )
 
         html_template = f"""
 <!DOCTYPE html>
@@ -763,7 +851,7 @@ Your Newsletter AI
     <div class="email-container">
         <div class="header">
             <h1>{title}</h1>
-            {f'<div class="personalization-badge">Personalized • {personalization_level.title()}</div>' if rag_context_used else ""}
+            <div class="personalization-badge">{badge_text}</div>
         </div>
         
         <div class="content">
@@ -965,28 +1053,140 @@ Your Newsletter AI
             print(f"Failed to get personalized suggestions: {e}")
             return []
 
-    async def _enhance_content_with_rag(
-        self,
-        user_id: str,
-        articles: List[Dict[str, Any]],
-        user_preferences: Dict[str, Any],
+    async def _apply_rag_content_strategy(
+        self, content: Dict[str, Any], rag_context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Enhance content generation with comprehensive RAG context"""
+        """Apply RAG-based content strategy to enhance newsletter"""
         try:
-            # Use the comprehensive RAG system
-            return await rag_system.generate_personalized_content_context(
-                user_id=user_id, articles=articles, user_preferences=user_preferences
-            )
+            if not rag_context.get("rag_available"):
+                return content
+
+            content_strategy = rag_context.get("content_strategy", {})
+            recommendations = rag_context.get("recommendations", {})
+
+            # Apply tone recommendations
+            recommended_tone = content_strategy.get("recommended_tone")
+            if recommended_tone:
+                content["metadata"] = content.get("metadata", {})
+                content["metadata"]["applied_tone"] = recommended_tone
+
+            # Add personalization insights to metadata
+            personalization_insights = rag_context.get("personalization_insights", [])
+            if personalization_insights:
+                content["metadata"]["personalization_insights"] = (
+                    personalization_insights
+                )
+
+            # Add content recommendations
+            topic_suggestions = recommendations.get("topic_suggestions", [])
+            if topic_suggestions:
+                content["metadata"]["topic_recommendations"] = [
+                    t["topic"] for t in topic_suggestions[:3]
+                ]
+
+            return content
 
         except Exception as e:
-            print(f"Failed to enhance content with RAG: {e}")
+            print(f"Failed to apply RAG content strategy: {e}")
+            return content
+
+    def _create_blog_style_template(
+        self, newsletter: Dict[str, Any], template_type: str = "modern"
+    ) -> Dict[str, str]:
+        """Create blog-style newsletter templates with proper structure"""
+
+        title = newsletter.get("title", "Newsletter")
+        introduction = newsletter.get("introduction", "")
+        sections = newsletter.get("sections", [])
+        conclusion = newsletter.get("conclusion", "")
+        metadata = newsletter.get("metadata", {})
+
+        if template_type == "modern":
+            # Modern blog-style template with clean design
+            html_template = self._generate_html_email(newsletter)
+
+            # Create markdown version for blog-style reading
+            markdown_template = f"""# {title}
+
+{introduction}
+
+---
+
+"""
+
+            for section in sections:
+                section_title = section.get("title", "")
+                articles = section.get("articles", [])
+
+                markdown_template += f"## {section_title}\n\n"
+
+                for article in articles:
+                    markdown_template += f"{article}\n"
+
+                markdown_template += "---\n\n"
+
+            markdown_template += f"""## Conclusion
+
+{conclusion}
+
+---
+
+*Generated on {metadata.get("generated_at", "Unknown")} | {metadata.get("word_count", 0)} words | {metadata.get("estimated_read_time", 5)} min read*
+"""
+
             return {
-                "rag_available": False,
-                "similar_content": [],
-                "recommendations": {},
-                "personalization_insights": [f"RAG enhancement failed: {e}"],
-                "content_strategy": {},
+                "html": html_template,
+                "markdown": markdown_template,
+                "plain_text": self._generate_plain_text_email(newsletter),
             }
+
+        else:
+            # Fallback to existing HTML generation
+            return {
+                "html": self._generate_html_email(newsletter),
+                "markdown": "",
+                "plain_text": self._generate_plain_text_email(newsletter),
+            }
+
+    def _generate_plain_text_email(self, newsletter: Dict[str, Any]) -> str:
+        """Generate plain text version of newsletter"""
+
+        title = newsletter.get("title", "Newsletter")
+        introduction = newsletter.get("introduction", "")
+        sections = newsletter.get("sections", [])
+        conclusion = newsletter.get("conclusion", "")
+        metadata = newsletter.get("metadata", {})
+
+        plain_text = f"""{title}
+{"=" * len(title)}
+
+{introduction}
+
+"""
+
+        for section in sections:
+            section_title = section.get("title", "")
+            articles = section.get("articles", [])
+
+            plain_text += f"{section_title}\n{'-' * len(section_title)}\n\n"
+
+            for i, article in enumerate(articles, 1):
+                # Clean up markdown formatting for plain text
+                clean_article = str(article).replace("**", "").replace("*", "")
+                plain_text += f"{i}. {clean_article}\n"
+
+            plain_text += "\n"
+
+        plain_text += f"""
+{conclusion}
+
+---
+Generated: {metadata.get("generated_at", "Unknown")}
+Articles: {metadata.get("article_count", 0)}
+Reading time: {metadata.get("estimated_read_time", 5)} minutes
+"""
+
+        return plain_text
 
 
 # Global writing agent instance

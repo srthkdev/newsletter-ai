@@ -58,39 +58,36 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Example prompts
-EXAMPLE_PROMPTS = [
-    {
-        "title": "AI Breakthroughs Focus",
-        "prompt": "Create a newsletter about the latest AI breakthroughs this week, focusing on practical applications and business impact. Use a professional tone and include 5-7 key articles.",
-        "category": "Technology",
-    },
-    {
-        "title": "Startup Funding Roundup",
-        "prompt": "Generate a newsletter covering recent startup funding rounds and investment trends. Keep it casual and conversational, highlighting interesting companies and their stories.",
-        "category": "Business",
-    },
-    {
-        "title": "Climate Tech Innovation",
-        "prompt": "Focus on climate technology innovations and sustainability breakthroughs. Include both scientific developments and business applications. Use a technical but accessible tone.",
-        "category": "Science",
-    },
-    {
-        "title": "Developer Tools & Trends",
-        "prompt": "Create a newsletter for software developers covering new tools, frameworks, and programming trends. Include practical tips and code examples where relevant.",
-        "category": "Technology",
-    },
-    {
-        "title": "Health & Biotech Updates",
-        "prompt": "Cover the latest in healthcare technology and biotechnology research. Focus on breakthrough treatments, medical devices, and health innovations that could impact patients.",
-        "category": "Health",
-    },
-    {
-        "title": "Fintech & Crypto News",
-        "prompt": "Generate a newsletter about financial technology developments and cryptocurrency trends. Include regulatory updates and market analysis with a professional tone.",
-        "category": "Finance",
-    },
-]
+# Load example prompts from API
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def load_example_prompts():
+    """Load example prompts from API"""
+    examples_data = get_prompt_examples()
+    if examples_data:
+        return examples_data.get("examples", []), examples_data.get("placeholders", [])
+    
+    # Fallback examples if API is not available
+    fallback_examples = [
+        {
+            "category": "Technology",
+            "prompt": "Create a newsletter about AI breakthroughs this week with a technical tone",
+            "description": "Focus on recent AI developments with detailed analysis",
+            "tags": ["AI", "technical", "weekly"],
+        },
+        {
+            "category": "Business",
+            "prompt": "Focus on startup funding news with a casual, conversational style",
+            "description": "Cover venture capital and startup news in an approachable way",
+            "tags": ["startups", "funding", "casual"],
+        },
+    ]
+    
+    fallback_placeholders = [
+        "Create a newsletter about AI breakthroughs this week with a technical tone",
+        "Focus on startup funding news with a casual, conversational style",
+    ]
+    
+    return fallback_examples, fallback_placeholders
 
 
 def get_user_preferences() -> Optional[Dict[str, Any]]:
@@ -99,6 +96,60 @@ def get_user_preferences() -> Optional[Dict[str, Any]]:
         user_id = st.session_state.get("user_id", "demo_user")
         response = requests.get(f"{API_BASE_URL}/preferences/{user_id}", timeout=10)
 
+        if response.status_code == 200:
+            return response.json()
+        return None
+    except Exception:
+        return None
+
+
+def validate_prompt(prompt: str) -> Optional[Dict[str, Any]]:
+    """Validate a custom prompt"""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/newsletters/validate-prompt",
+            json={"prompt": prompt},
+            timeout=10,
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        return None
+    except Exception:
+        return None
+
+
+def get_prompt_examples() -> Optional[Dict[str, Any]]:
+    """Get prompt examples and placeholders"""
+    try:
+        response = requests.get(f"{API_BASE_URL}/newsletters/prompt-examples", timeout=10)
+        
+        if response.status_code == 200:
+            return response.json()
+        return None
+    except Exception:
+        return None
+
+
+def enhance_prompt_with_rag(
+    prompt: str, user_id: str, preferences: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
+    """Enhance prompt using RAG system"""
+    try:
+        params = {
+            "user_id": user_id,
+            "prompt": prompt,
+        }
+        if preferences:
+            params["user_preferences"] = preferences
+
+        response = requests.post(
+            f"{API_BASE_URL}/newsletters/enhance-prompt",
+            params={"user_id": user_id, "prompt": prompt},
+            json=preferences,
+            timeout=15,
+        )
+        
         if response.status_code == 200:
             return response.json()
         return None
@@ -116,11 +167,10 @@ def generate_custom_newsletter(
         payload = {
             "user_id": user_id,
             "custom_prompt": prompt,
+            "user_preferences": preferences,
+            "use_rag": True,
             "send_immediately": False,  # Generate but don't send yet
         }
-
-        if preferences:
-            payload["preferences_override"] = preferences
 
         response = requests.post(
             f"{API_BASE_URL}/newsletters/generate-custom",
@@ -237,22 +287,21 @@ def show_prompt_creation(preferences: Optional[Dict[str, Any]]):
     # Main prompt input
     st.markdown("#### What would you like your newsletter to focus on?")
 
+    # Load placeholders from API
+    _, placeholders = load_example_prompts()
+    
+    # Create placeholder text
+    placeholder_text = "Example prompts:\n\n"
+    for i, placeholder in enumerate(placeholders[:4], 1):
+        placeholder_text += f"• \"{placeholder}\"\n"
+    
+    placeholder_text += "\nBe specific about:\n- Topics you want covered\n- Tone/style preferences\n- Number of articles\n- Any special focus areas"
+
     custom_prompt = st.text_area(
         "Custom Newsletter Prompt",
         value=st.session_state.custom_prompt,
         height=150,
-        placeholder="""Example prompts:
-        
-• "Create a newsletter about AI breakthroughs this week with a technical tone"
-• "Focus on startup funding news with a casual, conversational style"  
-• "Cover cybersecurity trends with practical tips for developers"
-• "Generate content about renewable energy innovations for business professionals"
-
-Be specific about:
-- Topics you want covered
-- Tone/style preferences  
-- Number of articles
-- Any special focus areas""",
+        placeholder=placeholder_text,
         help="Describe exactly what you want in your newsletter. Be as specific as possible!",
         key="prompt_input",
     )
@@ -260,69 +309,115 @@ Be specific about:
     # Update session state
     st.session_state.custom_prompt = custom_prompt
 
-    # Prompt enhancement suggestions
+    # Real-time prompt analysis and enhancement
     if custom_prompt:
-        st.markdown("#### 🔍 Prompt Analysis")
+        st.markdown("#### 🔍 Prompt Analysis & Enhancement")
 
-        # Simple analysis of the prompt
-        word_count = len(custom_prompt.split())
-        has_tone = any(
-            tone in custom_prompt.lower()
-            for tone in ["professional", "casual", "technical", "formal", "friendly"]
-        )
-        has_topics = any(
-            topic in custom_prompt.lower()
-            for topic in ["ai", "tech", "business", "startup", "science", "health"]
-        )
-        has_specifics = any(
-            word in custom_prompt.lower()
-            for word in ["focus", "include", "cover", "about", "regarding"]
-        )
+        # Get validation from API
+        validation_result = validate_prompt(custom_prompt)
+        
+        if validation_result:
+            # Display validation results
+            col1, col2, col3, col4 = st.columns(4)
 
-        col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                score = validation_result.get("score", 0)
+                color = "green" if score >= 40 else "orange" if score >= 25 else "red"
+                st.metric("Quality Score", f"{score}/60", help="Overall prompt quality score")
 
-        with col1:
-            status = "✅" if word_count >= 10 else "⚠️"
-            st.metric(
-                "Word Count", word_count, help="Aim for 10+ words for better results"
-            )
-            st.markdown(
-                f"{status} {'Good length' if word_count >= 10 else 'Could be longer'}"
-            )
+            with col2:
+                word_count = len(custom_prompt.split())
+                status = "✅" if word_count >= 10 else "⚠️"
+                st.metric("Word Count", word_count, help="Aim for 10+ words for better results")
 
-        with col2:
-            status = "✅" if has_tone else "💡"
-            st.markdown(
-                f"**Tone Specified**\n{status} {'Yes' if has_tone else 'Consider adding tone'}"
-            )
+            with col3:
+                is_valid = validation_result.get("is_valid", False)
+                st.markdown(f"**Valid Prompt**\n{'✅ Yes' if is_valid else '❌ No'}")
 
-        with col3:
-            status = "✅" if has_topics else "💡"
-            st.markdown(
-                f"**Topics Clear**\n{status} {'Yes' if has_topics else 'Be more specific'}"
-            )
+            with col4:
+                feedback_count = len(validation_result.get("feedback", []))
+                st.markdown(f"**Feedback Items**\n📝 {feedback_count}")
 
-        with col4:
-            status = "✅" if has_specifics else "💡"
-            st.markdown(
-                f"**Specific Focus**\n{status} {'Yes' if has_specifics else 'Add more details'}"
-            )
+            # Show feedback
+            feedback = validation_result.get("feedback", [])
+            if feedback:
+                st.markdown("**✅ Positive feedback:**")
+                for item in feedback:
+                    st.markdown(f"• {item}")
 
-        # Suggestions for improvement
-        suggestions = []
-        if word_count < 10:
-            suggestions.append("Add more details about what you want to read")
-        if not has_tone:
-            suggestions.append("Specify a tone (professional, casual, technical)")
-        if not has_topics:
-            suggestions.append("Mention specific topics or industries")
-        if not has_specifics:
-            suggestions.append("Include specific focus areas or requirements")
+            # Show suggestions
+            suggestions = validation_result.get("suggestions", [])
+            if suggestions:
+                st.markdown("**💡 Suggestions for improvement:**")
+                for suggestion in suggestions:
+                    st.markdown(f"• {suggestion}")
 
-        if suggestions:
-            st.markdown("**💡 Suggestions to improve your prompt:**")
-            for suggestion in suggestions:
-                st.markdown(f"• {suggestion}")
+            # Show warnings
+            warnings = validation_result.get("warnings", [])
+            if warnings:
+                st.markdown("**⚠️ Warnings:**")
+                for warning in warnings:
+                    st.markdown(f"• {warning}")
+
+        # RAG Enhancement Section
+        if preferences and not preferences.get("is_default", False):
+            st.markdown("---")
+            st.markdown("#### 🧠 AI Enhancement (RAG)")
+            
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                if st.button("🚀 Enhance with AI", help="Use your reading history to improve this prompt"):
+                    with st.spinner("Enhancing prompt with your reading history..."):
+                        user_id = st.session_state.get("user_id", "demo_user")
+                        enhancement_result = enhance_prompt_with_rag(
+                            custom_prompt, user_id, preferences
+                        )
+                    
+                    if enhancement_result:
+                        st.session_state.rag_enhancement = enhancement_result
+                        if enhancement_result.get("rag_available"):
+                            st.success("✅ Prompt enhanced with your reading history!")
+                        else:
+                            st.info("💡 No reading history available yet, but prompt was analyzed.")
+                    else:
+                        st.error("❌ Enhancement failed. Please try again.")
+
+            with col2:
+                if st.button("🔄 Reset to Original"):
+                    if "rag_enhancement" in st.session_state:
+                        del st.session_state.rag_enhancement
+                        st.success("✅ Reset to original prompt")
+
+            # Show enhancement results
+            if "rag_enhancement" in st.session_state:
+                enhancement = st.session_state.rag_enhancement
+                
+                if enhancement.get("enhanced_prompt") != custom_prompt:
+                    st.markdown("**🎯 Enhanced Prompt:**")
+                    st.info(enhancement["enhanced_prompt"])
+                    
+                    # Show what was enhanced
+                    enhancements = enhancement.get("enhancements_applied", [])
+                    if enhancements:
+                        st.markdown("**✨ Enhancements applied:**")
+                        for enhancement_item in enhancements:
+                            st.markdown(f"• {enhancement_item}")
+                    
+                    # Show RAG insights
+                    insights = enhancement.get("rag_insights", [])
+                    if insights:
+                        st.markdown("**🔍 Personalization insights:**")
+                        for insight in insights:
+                            st.markdown(f"• {insight}")
+                    
+                    # Option to use enhanced prompt
+                    if st.button("✅ Use Enhanced Prompt"):
+                        st.session_state.custom_prompt = enhancement["enhanced_prompt"]
+                        st.success("✅ Enhanced prompt applied!")
+                        st.rerun()
+        else:
+            st.info("💡 Set up your preferences to unlock AI-powered prompt enhancement based on your reading history!")
 
 
 def show_example_prompts():
@@ -333,25 +428,35 @@ def show_example_prompts():
         "Click on any example to use it as a starting point for your custom newsletter"
     )
 
+    # Load examples from API
+    examples, placeholders = load_example_prompts()
+
     # Group examples by category
     categories = {}
-    for example in EXAMPLE_PROMPTS:
-        category = example["category"]
+    for example in examples:
+        category = example.get("category", "General")
         if category not in categories:
             categories[category] = []
         categories[category].append(example)
 
     # Display examples by category
-    for category, examples in categories.items():
+    for category, category_examples in categories.items():
         st.markdown(f"#### {category}")
 
-        for example in examples:
+        for example in category_examples:
             with st.container():
+                # Show tags if available
+                tags = example.get("tags", [])
+                tags_html = ""
+                if tags:
+                    tags_html = " ".join([f"<span style='background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; margin-right: 4px;'>{tag}</span>" for tag in tags[:3]])
+
                 st.markdown(
                     f"""
                 <div class="example-prompt">
-                    <h5 style="margin: 0 0 0.5rem 0;">{example["title"]}</h5>
-                    <p style="margin: 0; color: #6b7280;">{example["prompt"]}</p>
+                    <h5 style="margin: 0 0 0.5rem 0;">{example.get("description", "Example Prompt")}</h5>
+                    <p style="margin: 0 0 0.5rem 0; color: #6b7280;">{example["prompt"]}</p>
+                    <div style="margin-top: 0.5rem;">{tags_html}</div>
                 </div>
                 """,
                     unsafe_allow_html=True,
@@ -359,9 +464,9 @@ def show_example_prompts():
 
                 col1, col2 = st.columns([1, 4])
                 with col1:
-                    if st.button(f"Use This", key=f"use_{example['title']}"):
+                    if st.button(f"Use This", key=f"use_{example['prompt'][:20]}"):
                         st.session_state.custom_prompt = example["prompt"]
-                        st.success(f"✅ Loaded: {example['title']}")
+                        st.success(f"✅ Loaded example prompt!")
                         st.rerun()
 
     # Custom prompt builder
