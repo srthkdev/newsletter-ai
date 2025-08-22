@@ -25,9 +25,9 @@ class NewsletterRatingBase(BaseModel):
     shared: Optional[bool] = Field(False, description="Whether the newsletter was shared")
     bookmarked: Optional[bool] = Field(False, description="Whether the newsletter was bookmarked")
     
-    preferred_tone: Optional[str] = Field(None, regex="^(professional|casual|technical)$")
-    preferred_length: Optional[str] = Field(None, regex="^(short|medium|long)$")
-    preferred_frequency: Optional[str] = Field(None, regex="^(daily|every_2_days|weekly|monthly)$")
+    preferred_tone: Optional[str] = Field(None, pattern="^(professional|casual|technical)$")
+    preferred_length: Optional[str] = Field(None, pattern="^(short|medium|long)$")
+    preferred_frequency: Optional[str] = Field(None, pattern="^(daily|every_2_days|weekly|monthly)$")
 
 
 class NewsletterRatingCreate(NewsletterRatingBase):
@@ -66,9 +66,9 @@ class NewsletterRatingUpdate(BaseModel):
     shared: Optional[bool] = None
     bookmarked: Optional[bool] = None
     
-    preferred_tone: Optional[str] = Field(None, regex="^(professional|casual|technical)$")
-    preferred_length: Optional[str] = Field(None, regex="^(short|medium|long)$")
-    preferred_frequency: Optional[str] = Field(None, regex="^(daily|every_2_days|weekly|monthly)$")
+    preferred_tone: Optional[str] = Field(None, pattern="^(professional|casual|technical)$")
+    preferred_length: Optional[str] = Field(None, pattern="^(short|medium|long)$")
+    preferred_frequency: Optional[str] = Field(None, pattern="^(daily|every_2_days|weekly|monthly)$")
 
 
 class NewsletterRatingResponse(NewsletterRatingBase):
