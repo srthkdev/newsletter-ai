@@ -49,6 +49,15 @@ st.markdown(
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         margin: 1rem 0;
         transition: all 0.3s ease;
+        color: #1a202c;
+    }
+    
+    .health-card h3, .health-card h4 {
+        color: #1a202c;
+    }
+    
+    .health-card p {
+        color: #2d3748;
     }
     
     .health-card.healthy {
@@ -107,6 +116,7 @@ st.markdown(
         text-align: center;
         border: 1px solid #e2e8f0;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        color: #1a202c;
     }
     
     .metric-value {
@@ -117,7 +127,7 @@ st.markdown(
     
     .metric-label {
         font-size: 0.875rem;
-        color: #6b7280;
+        color: #2d3748;
         font-weight: 500;
     }
     
@@ -151,6 +161,11 @@ st.markdown(
         border-radius: 12px;
         border: 1px solid #e2e8f0;
         margin: 1.5rem 0;
+        color: #1a202c;
+    }
+    
+    .control-panel h3, .control-panel h4 {
+        color: #1a202c;
     }
     
     .real-time-indicator {
