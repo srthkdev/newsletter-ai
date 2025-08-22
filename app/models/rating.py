@@ -4,6 +4,7 @@ Tracks user feedback and ratings for newsletters to improve future recommendatio
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Boolean, ForeignKey, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
@@ -15,7 +16,7 @@ class NewsletterRating(Base):
     __tablename__ = "newsletter_ratings"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     newsletter_id = Column(String(255), nullable=False, index=True)
     
     # Rating scores (1-5 scale)

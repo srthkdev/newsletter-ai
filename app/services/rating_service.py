@@ -32,7 +32,7 @@ class NewsletterRatingService:
     
     async def create_rating(
         self, 
-        user_id: int, 
+        user_id: str, 
         rating_data: NewsletterRatingCreate,
         newsletter_metadata: Optional[Dict[str, Any]] = None
     ) -> NewsletterRating:
@@ -129,7 +129,7 @@ class NewsletterRatingService:
     
     async def get_user_ratings(
         self, 
-        user_id: int, 
+        user_id: str, 
         limit: int = 20
     ) -> List[NewsletterRating]:
         """Get user's rating history"""
@@ -142,7 +142,7 @@ class NewsletterRatingService:
         finally:
             db.close()
     
-    async def get_rating_stats(self, user_id: int) -> NewsletterRatingStats:
+    async def get_rating_stats(self, user_id: str) -> NewsletterRatingStats:
         """Get comprehensive rating statistics for a user"""
         
         db = next(get_db())
@@ -216,7 +216,7 @@ class NewsletterRatingService:
         finally:
             db.close()
     
-    async def get_rating_analytics(self, user_id: int) -> RatingAnalytics:
+    async def get_rating_analytics(self, user_id: str) -> RatingAnalytics:
         """Get advanced analytics and insights from user ratings"""
         
         rating_stats = await self.get_rating_stats(user_id)
@@ -242,7 +242,7 @@ class NewsletterRatingService:
             topic_preferences=topic_preferences
         )
     
-    async def learn_preferences_from_ratings(self, user_id: int) -> Dict[str, Any]:
+    async def learn_preferences_from_ratings(self, user_id: str) -> Dict[str, Any]:
         """Learn and update user preferences based on rating history"""
         
         db = next(get_db())
@@ -282,7 +282,7 @@ class NewsletterRatingService:
     
     async def get_newsletter_rating(
         self, 
-        user_id: int, 
+        user_id: str, 
         newsletter_id: str
     ) -> Optional[NewsletterRating]:
         """Get specific newsletter rating"""
@@ -393,7 +393,7 @@ class NewsletterRatingService:
         except Exception as e:
             print(f"Failed to update preference scores: {e}")
     
-    async def _get_user_context(self, user_id: int) -> Dict[str, Any]:
+    async def _get_user_context(self, user_id: str) -> Dict[str, Any]:
         """Get current user context for rating"""
         try:
             return await self.memory_service.get_user_context(str(user_id)) or {}
@@ -435,7 +435,7 @@ class NewsletterRatingService:
     
     async def _generate_improvement_suggestions(
         self, 
-        user_id: int, 
+        user_id: str, 
         stats: NewsletterRatingStats
     ) -> List[str]:
         """Generate improvement suggestions based on rating patterns"""
@@ -462,7 +462,7 @@ class NewsletterRatingService:
     
     async def _generate_personalization_insights(
         self, 
-        user_id: int, 
+        user_id: str, 
         stats: NewsletterRatingStats
     ) -> List[str]:
         """Generate personalization insights"""
@@ -484,7 +484,7 @@ class NewsletterRatingService:
         
         return insights
     
-    async def _calculate_engagement_trends(self, user_id: int) -> Dict[str, Any]:
+    async def _calculate_engagement_trends(self, user_id: str) -> Dict[str, Any]:
         """Calculate engagement trends over time"""
         db = next(get_db())
         try:
@@ -522,7 +522,7 @@ class NewsletterRatingService:
     
     async def _calculate_topic_preferences(
         self, 
-        user_id: int, 
+        user_id: str, 
         stats: NewsletterRatingStats
     ) -> Dict[str, float]:
         """Calculate topic preference scores"""
@@ -602,7 +602,7 @@ class NewsletterRatingService:
     
     async def _update_rag_preferences(
         self, 
-        user_id: int, 
+        user_id: str, 
         learned_preferences: Dict[str, Any]
     ):
         """Update RAG system with learned preferences"""

@@ -515,7 +515,7 @@ async def get_all_agents_status():
 # Newsletter Rating Endpoints
 @router.post("/rate")
 async def rate_newsletter(
-    user_id: int,
+    user_id: str,
     newsletter_id: str,
     rating: int,
     feedback: str = None
@@ -549,7 +549,7 @@ async def rate_newsletter(
 
 @router.post("/rate-detailed")
 async def rate_newsletter_detailed(
-    user_id: int,
+    user_id: str,
     rating_data: dict
 ):
     """Create detailed newsletter rating with full feedback"""
@@ -578,7 +578,7 @@ async def rate_newsletter_detailed(
 
 
 @router.get("/ratings/{user_id}")
-async def get_user_ratings(user_id: int, limit: int = 20):
+async def get_user_ratings(user_id: str, limit: int = 20):
     """Get user's rating history"""
     from app.services.rating_service import rating_service
     
@@ -597,7 +597,7 @@ async def get_user_ratings(user_id: int, limit: int = 20):
 
 
 @router.get("/rating-stats/{user_id}")
-async def get_user_rating_stats(user_id: int):
+async def get_user_rating_stats(user_id: str):
     """Get comprehensive rating statistics for user"""
     from app.services.rating_service import rating_service
     
@@ -615,7 +615,7 @@ async def get_user_rating_stats(user_id: int):
 
 
 @router.get("/rating-analytics/{user_id}")
-async def get_user_rating_analytics(user_id: int):
+async def get_user_rating_analytics(user_id: str):
     """Get advanced rating analytics and insights"""
     from app.services.rating_service import rating_service
     
@@ -633,7 +633,7 @@ async def get_user_rating_analytics(user_id: int):
 
 
 @router.post("/learn-preferences/{user_id}")
-async def learn_preferences_from_ratings(user_id: int):
+async def learn_preferences_from_ratings(user_id: str):
     """Trigger preference learning from user's rating history"""
     from app.services.rating_service import rating_service
     
@@ -651,7 +651,7 @@ async def learn_preferences_from_ratings(user_id: int):
 
 
 @router.get("/rating/{user_id}/{newsletter_id}")
-async def get_newsletter_rating(user_id: int, newsletter_id: str):
+async def get_newsletter_rating(user_id: str, newsletter_id: str):
     """Get specific newsletter rating"""
     from app.services.rating_service import rating_service
     
