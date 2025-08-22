@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import uuid
 from app.core.database import get_db
@@ -34,7 +34,7 @@ async def signup(request: OTPRequest, db: Session = Depends(get_db)):
 
         # Generate OTP
         otp_code = email_service.generate_otp()
-        otp_expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        otp_expires_at = datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES)
 
         if existing_user:
             # Update existing user's OTP
@@ -99,7 +99,7 @@ async def verify_otp(request: OTPVerification, db: Session = Depends(get_db)):
                 detail="No verification code found. Please request a new one.",
             )
 
-        if datetime.utcnow() > user.otp_expires_at:
+        if datetime.now(timezone.utc) > user.otp_expires_at:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Verification code has expired. Please request a new one.",
@@ -131,7 +131,7 @@ async def verify_otp(request: OTPVerification, db: Session = Depends(get_db)):
         session_token = generate_session_token()
         user.is_active = True
         user.session_token = session_token
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         user.otp_code = None  # Clear OTP after successful verification
         user.otp_expires_at = None
         user.otp_attempts = 0
@@ -141,9 +141,9 @@ async def verify_otp(request: OTPVerification, db: Session = Depends(get_db)):
         session_data = {
             "user_id": str(user.id),
             "email": user.email,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "expires_at": (
-                datetime.utcnow() + timedelta(hours=SESSION_EXPIRY_HOURS)
+                datetime.now(timezone.utc) + timedelta(hours=SESSION_EXPIRY_HOURS)
             ).isoformat(),
         }
         await cache_service.set(
@@ -151,7 +151,8 @@ async def verify_otp(request: OTPVerification, db: Session = Depends(get_db)):
         )
 
         # Send welcome email for new users
-        if not user.last_login or user.last_login == datetime.utcnow():
+        current_time = datetime.now(timezone.utc)
+        if not user.last_login or abs((user.last_login - current_time).total_seconds()) < 60:
             await email_service.send_welcome_email(user.email, user.first_name)
 
         return AuthResponse(
