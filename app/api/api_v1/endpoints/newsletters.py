@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import get_db
+from app.core.auth_deps import get_current_user_from_token, get_current_user_id
+from app.models.user import User
 from app.portia.custom_prompt_agent import custom_prompt_agent
 import logging
 
@@ -13,8 +15,55 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def create_formatted_content(newsletter_obj: Dict[str, Any]) -> str:
+    """Create formatted newsletter content from newsletter object"""
+    content_parts = []
+    
+    # Add introduction
+    if newsletter_obj.get("introduction"):
+        content_parts.append(newsletter_obj["introduction"])
+        content_parts.append("\n\n")
+    
+    # Add sections
+    sections = newsletter_obj.get("sections", [])
+    for section in sections:
+        if isinstance(section, dict):
+            # Add section title if available
+            if section.get("title"):
+                content_parts.append(f"## {section['title']}\n\n")
+            
+            # Add articles in this section
+            articles = section.get("articles", [])
+            for i, article in enumerate(articles):
+                if isinstance(article, dict):
+                    # Handle structured article objects
+                    title = article.get("title", f"Article {i+1}")
+                    content = article.get("content", "")
+                    url = article.get("url", "")
+                    
+                    content_parts.append(f"### {title}\n\n")
+                    if content:
+                        # Truncate content to reasonable length
+                        truncated = content[:300] + "..." if len(content) > 300 else content
+                        content_parts.append(f"{truncated}\n\n")
+                    if url:
+                        content_parts.append(f"[Read more]({url})\n\n")
+                elif isinstance(article, str):
+                    # Handle string articles from writing agent (already formatted)
+                    content_parts.append(f"{article}\n\n")
+                else:
+                    # Fallback for any other type
+                    content_parts.append(f"{str(article)}\n\n")
+            content_parts.append("\n")
+    
+    # Add conclusion
+    if newsletter_obj.get("conclusion"):
+        content_parts.append(newsletter_obj["conclusion"])
+    
+    return "".join(content_parts)
+
+
 class CustomPromptRequest(BaseModel):
-    user_id: str
     custom_prompt: str
     user_preferences: Optional[Dict[str, Any]] = None
     use_rag: bool = True
@@ -31,29 +80,131 @@ class PromptExamplesResponse(BaseModel):
 
 
 @router.get("/")
-async def get_newsletters(db: Session = Depends(get_db)):
+async def get_newsletters(
+    limit: int = 10, 
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
+):
     """Get user's newsletter history"""
-    # TODO: Implement newsletter history retrieval
-    return {"newsletters": []}
+    try:
+        from app.utils.db_utils import db_utils
+        from app.models.newsletter import NewsletterStatus
+        
+        newsletters = db_utils.get_user_newsletters(user_id, limit)
+        
+        # Convert to response format
+        newsletter_list = []
+        for newsletter in newsletters:
+            newsletter_dict = {
+                "id": str(newsletter.id),
+                "title": newsletter.title,
+                "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status),
+                "created_at": newsletter.created_at.isoformat() if newsletter.created_at else None,
+                "sent_at": newsletter.sent_at.isoformat() if newsletter.sent_at else None,
+                "summary": newsletter.summary,
+                "content": newsletter.main_content,  # Add actual newsletter content
+                "topics": getattr(newsletter, 'topics_covered', []),
+                "article_count": len(getattr(newsletter, 'content_sections', [])),
+                "open_rate": 85.2,  # Mock data for now - would come from email service
+                "click_rate": 12.4,  # Mock data for now - would come from email service
+            }
+            newsletter_list.append(newsletter_dict)
+        
+        return {"newsletters": newsletter_list}
+        
+    except Exception as e:
+        logger.error(f"Failed to get newsletters: {e}")
+        return {"newsletters": []}
 
 
 @router.post("/generate")
-async def generate_newsletter(db: Session = Depends(get_db)):
+async def generate_newsletter(
+    send_immediately: bool = False, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token)
+):
     """Generate a new newsletter"""
-    # TODO: Implement newsletter generation with Portia agents
-    return {"message": "Newsletter generation started"}
+    try:
+        from app.portia.agent_orchestrator import NewsletterAgentOrchestrator
+        from app.utils.db_utils import db_utils
+        from app.models.newsletter import NewsletterStatus
+        import uuid
+        
+        user_id = str(current_user.id)
+        
+        # Get user preferences
+        user = db_utils.get_user_with_preferences(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Initialize orchestrator
+        orchestrator = NewsletterAgentOrchestrator()
+        
+        # Generate newsletter using AI agents
+        result = await orchestrator.generate_newsletter(
+            user_id=user_id,
+            send_email=send_immediately,
+            user_email=current_user.email if send_immediately else None
+        )
+        
+        logger.info(f"Newsletter generation result: {result.keys()}")
+        if 'newsletter' in result:
+            logger.info(f"Newsletter structure: {result['newsletter'].keys()}")
+        
+        if result.get("success"):
+            # Extract newsletter data from orchestrator result
+            newsletter_obj = result.get("newsletter", {})
+            
+            # Create newsletter record in database
+            newsletter_data = {
+                "title": newsletter_obj.get("title", "AI-Generated Newsletter"),
+                "main_content": create_formatted_content(newsletter_obj),
+                "html_content": newsletter_obj.get("html_content", ""),
+                "summary": newsletter_obj.get("introduction", "")[:200] + "..." if newsletter_obj.get("introduction") else "AI-generated newsletter with personalized content",
+                "status": NewsletterStatus.SENT if send_immediately else NewsletterStatus.READY,
+                "content_sections": newsletter_obj.get("sections", []),
+                "sources_used": result.get("articles", [])[:5],  # Store some articles as sources
+                "topics_covered": newsletter_obj.get("metadata", {}).get("user_preferences", {}).get("topics", []),
+                "word_count": result.get("word_count", 0),
+                "estimated_read_time": result.get("estimated_read_time", 5)
+            }
+            
+            if send_immediately:
+                newsletter_data["sent_at"] = datetime.now(timezone.utc)
+            
+            newsletter = db_utils.create_newsletter(user_id, newsletter_data)
+            
+            return {
+                "success": True,
+                "message": "Newsletter generated successfully",
+                "newsletter_id": str(newsletter.id),
+                "title": newsletter.title,
+                "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status)
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Newsletter generation failed"))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate newsletter: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/generate-custom")
 async def generate_custom_newsletter(
     request: CustomPromptRequest, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token)
 ):
     """Generate a newsletter from custom prompt"""
     try:
+        # Use authenticated user ID instead of request user_id
+        user_id = str(current_user.id)
+        
         # Process the custom prompt
         processing_result = await custom_prompt_agent.process_custom_prompt_full(
-            user_id=request.user_id,
+            user_id=user_id,
             custom_prompt=request.custom_prompt,
             user_preferences=request.user_preferences or {},
             use_rag=request.use_rag
@@ -69,7 +220,7 @@ async def generate_custom_newsletter(
         # For now, return the processing results
         
         newsletter_data = {
-            "newsletter_id": f"custom_{request.user_id}_{int(datetime.utcnow().timestamp())}",
+            "newsletter_id": f"custom_{user_id}_{int(datetime.now(timezone.utc).timestamp())}",
             "title": f"Custom Newsletter: {processing_result['enhanced_prompt'][:50]}...",
             "custom_prompt": request.custom_prompt,
             "enhanced_prompt": processing_result["enhanced_prompt"],
@@ -84,7 +235,7 @@ async def generate_custom_newsletter(
         # If send_immediately is True, we would trigger the email sending here
         if request.send_immediately:
             # TODO: Integrate with email service
-            newsletter_data["sent_at"] = datetime.utcnow().isoformat()
+            newsletter_data["sent_at"] = datetime.now(timezone.utc).isoformat()
             newsletter_data["status"] = "sent"
         
         return newsletter_data
@@ -139,17 +290,39 @@ async def enhance_prompt_with_rag(
 
 
 @router.post("/send-now")
-async def send_newsletter_now(db: Session = Depends(get_db)):
+async def send_newsletter_now(user_id: str = "demo_user", db: Session = Depends(get_db)):
     """Generate and send newsletter immediately"""
-    # TODO: Implement immediate newsletter generation and sending
-    return {"message": "Newsletter sent"}
+    return await generate_newsletter(user_id=user_id, send_immediately=True, db=db)
 
 
 @router.get("/{newsletter_id}")
 async def get_newsletter(newsletter_id: str, db: Session = Depends(get_db)):
     """Get specific newsletter"""
-    # TODO: Implement newsletter retrieval
-    return {"newsletter_id": newsletter_id}
+    try:
+        from app.utils.db_utils import db_utils
+        
+        newsletter = db_utils.get_newsletter_with_history(newsletter_id)
+        if not newsletter:
+            raise HTTPException(status_code=404, detail="Newsletter not found")
+        
+        return {
+            "id": str(newsletter.id),
+            "title": newsletter.title,
+            "content": newsletter.main_content,
+            "html_content": newsletter.html_content,
+            "summary": newsletter.summary,
+            "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status),
+            "created_at": newsletter.created_at.isoformat() if newsletter.created_at else None,
+            "sent_at": newsletter.sent_at.isoformat() if newsletter.sent_at else None,
+            "content_sections": newsletter.content_sections or [],
+            "sources_used": newsletter.sources_used or [],
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get newsletter: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get("/analytics/{user_id}")
@@ -523,8 +696,23 @@ async def rate_newsletter(
     """Quick rate a newsletter with stars and optional feedback"""
     from app.services.rating_service import rating_service
     from app.schemas.rating import NewsletterRatingCreate
+    import uuid
     
     try:
+        # Convert user_id to UUID if needed
+        if user_id == "demo_user":
+            # For demo user, create a consistent UUID
+            demo_uuid = uuid.UUID('12345678-1234-5678-1234-567812345678')
+            user_uuid = demo_uuid
+        else:
+            try:
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                # If user_id is not a valid UUID, create one from the string
+                import hashlib
+                user_hash = hashlib.sha256(user_id.encode()).hexdigest()[:32]
+                user_uuid = uuid.UUID(user_hash[:8] + '-' + user_hash[8:12] + '-' + user_hash[12:16] + '-' + user_hash[16:20] + '-' + user_hash[20:32])
+        
         rating_data = NewsletterRatingCreate(
             newsletter_id=newsletter_id,
             overall_rating=rating,
@@ -532,7 +720,7 @@ async def rate_newsletter(
         )
         
         created_rating = await rating_service.create_rating(
-            user_id=user_id,
+            user_id=str(user_uuid),
             rating_data=rating_data
         )
         
@@ -654,9 +842,22 @@ async def learn_preferences_from_ratings(user_id: str):
 async def get_newsletter_rating(user_id: str, newsletter_id: str):
     """Get specific newsletter rating"""
     from app.services.rating_service import rating_service
+    import uuid
     
     try:
-        rating = await rating_service.get_newsletter_rating(user_id, newsletter_id)
+        # Convert user_id to UUID if needed
+        if user_id == "demo_user":
+            demo_uuid = uuid.UUID('12345678-1234-5678-1234-567812345678')
+            user_uuid = demo_uuid
+        else:
+            try:
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                import hashlib
+                user_hash = hashlib.sha256(user_id.encode()).hexdigest()[:32]
+                user_uuid = uuid.UUID(user_hash[:8] + '-' + user_hash[8:12] + '-' + user_hash[12:16] + '-' + user_hash[16:20] + '-' + user_hash[20:32])
+        
+        rating = await rating_service.get_newsletter_rating(str(user_uuid), newsletter_id)
         
         if rating:
             return {
@@ -671,7 +872,11 @@ async def get_newsletter_rating(user_id: str, newsletter_id: str):
         
     except Exception as e:
         logger.error(f"Failed to get newsletter rating: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return not found instead of error to avoid breaking the UI
+        return {
+            "success": False,
+            "message": "Rating not found"
+        }
 
 
 @router.put("/rating/{rating_id}")
