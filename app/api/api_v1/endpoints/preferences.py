@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, List
 import uuid
 from app.core.database import get_db
+from app.core.auth_deps import get_current_user_from_token, get_current_user_id
 from app.models.preferences import UserPreferences
 from app.models.user import User
 from app.schemas.preferences import PreferencesCreate, PreferencesUpdate, Preferences
@@ -11,13 +12,15 @@ from app.portia.preference_agent import preference_agent
 router = APIRouter()
 
 
-@router.get("/{user_id}")
-async def get_preferences(user_id: str, db: Session = Depends(get_db)):
+@router.get("/")
+async def get_preferences(
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
     """Get user preferences"""
     try:
-        # Convert string to UUID
-        user_uuid = uuid.UUID(user_id) if user_id != "demo_user" else uuid.uuid4()
-
+        user_uuid = current_user.id
+        
         # Get preferences from database
         preferences = (
             db.query(UserPreferences)
@@ -33,11 +36,14 @@ async def get_preferences(user_id: str, db: Session = Depends(get_db)):
                 "tone": preferences.tone,
                 "frequency": preferences.frequency,
                 "custom_instructions": preferences.custom_instructions,
-                "max_articles": preferences.max_articles,
-                "include_trending": preferences.include_trending,
+                "max_articles": preferences.max_articles_per_newsletter,
+                "include_trending": getattr(preferences, 'include_trending', False),
                 "preferred_length": preferences.preferred_length,
-                "send_time": preferences.preferred_send_time,
+                "send_time": preferences.preferred_send_time.strftime("%H:%M") if preferences.preferred_send_time else "09:00",
                 "timezone": preferences.timezone,
+                "include_summaries": getattr(preferences, 'include_summaries', True),
+                "include_links": getattr(preferences, 'include_links', True),
+                "include_images": getattr(preferences, 'include_images', False),
                 "created_at": preferences.created_at.isoformat()
                 if preferences.created_at
                 else None,
@@ -48,7 +54,7 @@ async def get_preferences(user_id: str, db: Session = Depends(get_db)):
         else:
             # Return default preferences if none exist
             return {
-                "user_id": user_id,
+                "user_id": str(user_uuid),
                 "topics": ["Technology", "Business"],
                 "tone": "professional",
                 "frequency": "weekly",
@@ -69,30 +75,28 @@ async def get_preferences(user_id: str, db: Session = Depends(get_db)):
         )
 
 
-@router.put("/{user_id}")
+@router.put("/")
 async def update_preferences(
-    user_id: str, preferences_data: Dict[str, Any], db: Session = Depends(get_db)
+    preferences_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
 ):
     """Update user preferences"""
     try:
-        # Convert string to UUID
-        user_uuid = uuid.UUID(user_id) if user_id != "demo_user" else uuid.uuid4()
-
-        # Use Portia preference agent to validate and process preferences
-        context = {
-            "user_id": str(user_uuid),
-            "action": "update",
-            "preferences": preferences_data,
-        }
-
-        # Execute preference update through Portia agent
-        result = await preference_agent.execute_task("update_preferences", context)
-
-        if not result.get("success", False):
-            raise HTTPException(
-                status_code=400,
-                detail=result.get("error", "Failed to update preferences"),
-            )
+        user_uuid = current_user.id
+        
+        # Try to use Portia preference agent, but don't fail if it's not available
+        portia_result = None
+        try:
+            context = {
+                "user_id": str(user_uuid),
+                "action": "update",
+                "preferences": preferences_data,
+            }
+            portia_result = await preference_agent.execute_task("update_preferences", context)
+        except Exception as e:
+            print(f"Portia preference agent failed: {e}, proceeding without it")
+            portia_result = {"success": True, "message": "Preferences updated without AI validation"}
 
         # Get or create preferences record
         preferences = (
@@ -117,6 +121,7 @@ async def update_preferences(
                 include_links=True,
                 include_images=preferences_data.get("include_images", False),
                 personalization_enabled=True,
+                include_trending=preferences_data.get("include_trending", False),
             )
             db.add(preferences)
         else:
@@ -160,29 +165,35 @@ async def update_preferences(
                 "custom_instructions": preferences.custom_instructions,
                 "max_articles": preferences.max_articles_per_newsletter,
                 "preferred_length": preferences.preferred_length,
-                "send_time": preferences.preferred_send_time,
+                "send_time": preferences.preferred_send_time.strftime("%H:%M") if preferences.preferred_send_time else "09:00",
                 "timezone": preferences.timezone,
-                "include_trending": preferences.include_trending,
+                "include_trending": getattr(preferences, 'include_trending', False),
+                "include_summaries": getattr(preferences, 'include_summaries', True),
+                "include_links": getattr(preferences, 'include_links', True),
+                "include_images": getattr(preferences, 'include_images', False),
             },
-            "portia_result": result,
+            "portia_result": portia_result,
         }
 
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID format")
     except Exception as e:
         db.rollback()
+        print(f"Error updating preferences: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error updating preferences: {str(e)}"
         )
 
 
-@router.get("/{user_id}/recommendations")
-async def get_preference_recommendations(user_id: str, db: Session = Depends(get_db)):
+@router.get("/recommendations")
+async def get_preference_recommendations(
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
     """Get AI-powered preference recommendations"""
     try:
-        # Convert string to UUID
-        user_uuid = uuid.UUID(user_id) if user_id != "demo_user" else uuid.uuid4()
-
+        user_uuid = current_user.id
+        
         # Use Portia preference agent to generate recommendations
         context = {"user_id": str(user_uuid), "action": "recommend"}
 

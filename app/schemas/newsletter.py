@@ -35,4 +35,4 @@ class Newsletter(NewsletterBase):
     sources_used: List[Dict[str, Any]] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True

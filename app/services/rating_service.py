@@ -49,11 +49,29 @@ class NewsletterRatingService:
             ).first()
             
             if existing_rating:
-                # Update existing rating
-                return await self.update_rating(existing_rating.id, rating_data)
+                # Update existing rating instead of creating new one
+                existing_rating.overall_rating = rating_data.overall_rating
+                existing_rating.content_quality = rating_data.content_quality
+                existing_rating.relevance_score = rating_data.relevance_score
+                existing_rating.readability_score = rating_data.readability_score
+                existing_rating.feedback_text = rating_data.feedback_text
+                existing_rating.liked_topics = rating_data.liked_topics
+                existing_rating.disliked_topics = rating_data.disliked_topics
+                existing_rating.suggested_topics = rating_data.suggested_topics
+                existing_rating.read_time_minutes = rating_data.read_time_minutes
+                existing_rating.clicked_links = rating_data.clicked_links
+                existing_rating.updated_at = datetime.utcnow()
+                
+                db.commit()
+                db.refresh(existing_rating)
+                
+                # Update preferences based on rating
+                await self._update_preferences_from_rating(user_id, existing_rating, newsletter_metadata)
+                
+                return existing_rating
             
             # Create new rating
-            rating = NewsletterRating(
+            new_rating = NewsletterRating(
                 user_id=user_id,
                 newsletter_id=rating_data.newsletter_id,
                 overall_rating=rating_data.overall_rating,
@@ -66,30 +84,25 @@ class NewsletterRatingService:
                 suggested_topics=rating_data.suggested_topics,
                 read_time_minutes=rating_data.read_time_minutes,
                 clicked_links=rating_data.clicked_links,
-                shared=rating_data.shared,
-                bookmarked=rating_data.bookmarked,
-                preferred_tone=rating_data.preferred_tone,
-                preferred_length=rating_data.preferred_length,
-                preferred_frequency=rating_data.preferred_frequency,
                 newsletter_metadata=newsletter_metadata,
-                user_context=await self._get_user_context(user_id)
+                created_at=datetime.utcnow()
             )
             
-            db.add(rating)
+            db.add(new_rating)
             db.commit()
-            db.refresh(rating)
+            db.refresh(new_rating)
             
-            # Process rating for preference learning (async)
-            asyncio.create_task(self._process_rating_for_learning(rating))
+            # Update preferences based on rating
+            await self._update_preferences_from_rating(user_id, new_rating, newsletter_metadata)
             
-            return rating
+            return new_rating
             
         except Exception as e:
             db.rollback()
             raise e
         finally:
             db.close()
-    
+
     async def update_rating(
         self, 
         rating_id: int, 

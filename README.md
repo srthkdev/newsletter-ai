@@ -220,7 +220,7 @@ POST /newsletters/monitoring/start      # Start monitoring
 
 ### Prerequisites
 - Python 3.8+
-- PostgreSQL database
+- PostgreSQL database (or SQLite for local development)
 - API keys for integrations
 
 ### 1. Clone & Install
@@ -231,11 +231,8 @@ pip install -r requirements.txt
 ```
 
 ### 2. Environment Configuration
-```bash
-cp .env.example .env
-```
+Create a `.env` file in the root directory:
 
-Required API keys in `.env`:
 ```env
 # Core AI Services
 OPENAI_API_KEY=your_openai_key
@@ -250,35 +247,64 @@ RESEND_API_KEY=your_resend_key
 # Storage & Memory
 UPSTASH_REDIS_URL=your_redis_url
 UPSTASH_VECTOR_URL=your_vector_url
-NEON_DATABASE_URL=your_postgres_url
+
+# Database (PostgreSQL recommended, SQLite fallback)
+DATABASE_URL=postgresql://user:password@host:port/dbname
+# Or for local development:
+# DATABASE_URL=sqlite:///./newsletter_ai.db
 ```
 
 ### 3. Database Setup
-```bash
-# Initialize database tables
-python -c "from app.core.database import create_tables; create_tables()"
+The project uses a custom migration system. Choose one of the following options:
 
-# Or use Alembic migrations
-alembic upgrade head
+#### Option A: Create all tables (recommended for new setup)
+```bash
+python app/migrations/create_tables.py create
+```
+
+#### Option B: Reset database (drops and recreates all tables)
+```bash
+python app/migrations/create_tables.py reset
+```
+
+#### Option C: Seed with sample data (optional)
+```bash
+python app/migrations/seed_data.py
 ```
 
 ### 4. Start Services
-```bash
-# Terminal 1: Start FastAPI backend
-uvicorn app.main:app --reload --port 8000
 
-# Terminal 2: Start Streamlit frontend  
+#### Terminal 1: Start FastAPI backend
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+#### Terminal 2: Start Streamlit frontend
+```bash
 streamlit run streamlit_app.py --server.port 8501
 ```
 
 ### 5. Verify Installation
-```bash
-# Test all Portia AI agents
-curl -X POST "http://localhost:8000/api/v1/agents/test-all-agents"
 
-# Test system integrations
+#### Test API Connection
+```bash
+curl http://localhost:8000/
+```
+
+#### Test Portia AI Agents
+```bash
+curl -X POST "http://localhost:8000/api/v1/agents/test-all-agents"
+```
+
+#### Test System Integrations
+```bash
 curl -X POST "http://localhost:8000/api/v1/agents/validate-integrations"
 ```
+
+### 6. Access the Application
+- **Frontend (Streamlit)**: http://localhost:8501
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
 
 ## 🎮 User Journey
 
@@ -302,6 +328,66 @@ Choose from three methods:
 - View reading patterns and engagement
 - Get AI-powered recommendations  
 - Export data and insights
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### 1. Database Connection Errors
+```bash
+# Check if database exists and is accessible
+python app/migrations/test_models.py
+
+# Reset database if corrupted
+python app/migrations/create_tables.py reset
+```
+
+#### 2. API Service Errors
+```bash
+# Test individual services
+curl http://localhost:8000/health
+
+# Check API logs
+uvicorn app.main:app --reload --log-level debug
+```
+
+#### 3. Missing Dependencies
+```bash
+# Reinstall all dependencies
+pip install -r requirements.txt --force-reinstall
+```
+
+#### 4. Environment Variable Issues
+```bash
+# Verify all required environment variables are set
+python -c "from app.core.config import settings; print(settings)"
+```
+
+### Environment Setup
+
+#### Local Development (SQLite)
+For local development without PostgreSQL:
+```env
+DATABASE_URL=sqlite:///./newsletter_ai.db
+```
+
+#### Production (PostgreSQL)
+For production with cloud database:
+```env
+DATABASE_URL=postgresql://user:password@host:port/dbname
+```
+
+### Performance Tips
+
+1. **Enable Redis Caching**: Set `UPSTASH_REDIS_URL` for better performance
+2. **Use Vector Database**: Set `UPSTASH_VECTOR_URL` for RAG functionality
+3. **Monitor Resources**: Check system health via Streamlit monitoring page
+4. **Scale Workers**: Use multiple uvicorn workers for high load
+
+```bash
+# Multiple workers for production
+uvicorn app.main:app --workers 4 --host 0.0.0.0 --port 8000
+```
 
 ## 🏗️ Architecture Highlights
 

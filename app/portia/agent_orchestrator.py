@@ -3,7 +3,7 @@ Agent Orchestrator for coordinating all Newsletter AI agents
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.portia.research_agent import research_agent
 from app.portia.writing_agent import writing_agent
 from app.portia.preference_agent import preference_agent
@@ -44,7 +44,7 @@ class NewsletterAgentOrchestrator:
         """
         workflow_results = {
             "user_id": user_id,
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
             "steps": {},
             "success": False,
             "newsletter": None,

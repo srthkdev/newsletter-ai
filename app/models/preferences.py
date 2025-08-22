@@ -28,6 +28,7 @@ class UserPreferences(Base):
     include_summaries = Column(Boolean, default=True)
     include_links = Column(Boolean, default=True)
     include_images = Column(Boolean, default=False)
+    include_trending = Column(Boolean, default=False)  # Include trending topics
 
     # Advanced preferences
     custom_instructions = Column(String, nullable=True)

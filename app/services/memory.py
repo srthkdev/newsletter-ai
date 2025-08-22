@@ -16,6 +16,7 @@ class MemoryService:
         self.redis_url = os.getenv("UPSTASH_REDIS_URL")
         self.redis_token = os.getenv("UPSTASH_REDIS_TOKEN")
         self._client = None
+        self._warned_about_config = False  # Only warn once
 
     def _get_client(self):
         """Get Redis client instance"""
@@ -26,10 +27,19 @@ class MemoryService:
                 if self.redis_url and self.redis_token:
                     self._client = Redis(url=self.redis_url, token=self.redis_token)
                 else:
-                    print("⚠️  Upstash Redis credentials not configured")
+                    if not self._warned_about_config:
+                        print("⚠️  Upstash Redis credentials not configured - memory features disabled")
+                        self._warned_about_config = True
                     return None
             except ImportError:
-                print("⚠️  upstash-redis package not installed")
+                if not self._warned_about_config:
+                    print("⚠️  upstash-redis package not installed - memory features disabled")
+                    self._warned_about_config = True
+                return None
+            except Exception as e:
+                if not self._warned_about_config:
+                    print(f"⚠️  Failed to initialize Upstash Redis: {e} - memory features disabled")
+                    self._warned_about_config = True
                 return None
         return self._client
 

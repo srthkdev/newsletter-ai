@@ -14,11 +14,14 @@ vector_client = None
 def get_redis_client():
     """Get Upstash Redis client"""
     global redis_client
-    if redis_client is None and settings.UPSTASH_REDIS_REST_URL:
+    if redis_client is None and settings.UPSTASH_REDIS_REST_URL and settings.UPSTASH_REDIS_REST_TOKEN:
         try:
             from upstash_redis import Redis
 
-            redis_client = Redis.from_env()
+            redis_client = Redis(
+                url=settings.UPSTASH_REDIS_REST_URL,
+                token=settings.UPSTASH_REDIS_REST_TOKEN
+            )
         except ImportError:
             print(
                 "upstash-redis not installed. Install with: pip install upstash-redis"
@@ -98,7 +101,26 @@ class VectorService:
         if not self.vector:
             return False
         try:
-            await self.vector.upsert(vectors)
+            # Clean vector data to prevent serialization issues
+            cleaned_vectors = []
+            for vector_data in vectors:
+                cleaned = {
+                    "id": str(vector_data.get("id", "")),
+                    "values": vector_data.get("values", []),
+                    "metadata": {}
+                }
+                # Clean metadata
+                metadata = vector_data.get("metadata", {})
+                for key, value in metadata.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        cleaned["metadata"][key] = value
+                    else:
+                        # Convert complex objects to strings to avoid serialization issues
+                        cleaned["metadata"][key] = str(value)
+                
+                cleaned_vectors.append(cleaned)
+            
+            await self.vector.upsert(cleaned_vectors)
             return True
         except Exception as e:
             print(f"Vector upsert error: {e}")
@@ -111,8 +133,26 @@ class VectorService:
         if not self.vector:
             return []
         try:
-            result = await self.vector.query(
-                vector=vector, top_k=top_k, include_metadata=True, filter=filter
+            # Ensure vector is a list of floats
+            if not isinstance(vector, list) or not all(isinstance(v, (int, float)) for v in vector):
+                print(f"Vector query error: Invalid vector format: {type(vector)}")
+                return []
+            
+            # Clean filter to avoid serialization issues
+            clean_filter = {}
+            if filter:
+                for key, value in filter.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        clean_filter[key] = value
+                    else:
+                        # Convert complex objects to strings
+                        clean_filter[key] = str(value)
+                
+            result = self.vector.query(
+                vector=vector, 
+                top_k=top_k, 
+                include_metadata=True, 
+                filter=clean_filter
             )
             return result.matches if result else []
         except Exception as e:

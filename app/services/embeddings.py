@@ -1,9 +1,9 @@
 """
-Embedding service for RAG functionality using OpenAI embeddings
+Embedding service for RAG functionality using Google Gemini embeddings
 """
 
 from typing import List, Dict, Any, Optional
-import openai
+import google.generativeai as genai
 from app.core.config import settings
 from app.services.upstash import vector_service
 import uuid
@@ -14,15 +14,26 @@ class EmbeddingService:
     """Service for creating and managing embeddings"""
 
     def __init__(self):
-        if settings.OPENAI_API_KEY:
-            openai.api_key = settings.OPENAI_API_KEY
-        self.model = "text-embedding-3-small"  # Cost-effective embedding model
+        if settings.GOOGLE_API_KEY:
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            self.client = genai
+        else:
+            self.client = None
+        self.model = "models/text-embedding-004"  # Gemini text embedding model
 
     async def create_embedding(self, text: str) -> Optional[List[float]]:
-        """Create embedding for text using OpenAI"""
+        """Create embedding for text using Gemini"""
         try:
-            response = await openai.embeddings.acreate(model=self.model, input=text)
-            return response.data[0].embedding
+            if not self.client:
+                print("Gemini client not configured - GOOGLE_API_KEY missing")
+                return None
+                
+            response = genai.embed_content(
+                model=self.model,
+                content=text,
+                task_type="retrieval_document"
+            )
+            return response['embedding']
         except Exception as e:
             print(f"Embedding creation error: {e}")
             return None
@@ -65,8 +76,17 @@ class EmbeddingService:
     ) -> List[Dict[str, Any]]:
         """Search for similar content in user's newsletter history"""
         try:
-            # Create query embedding
-            query_embedding = await self.create_embedding(query)
+            # Create query embedding with proper task type for search
+            if not self.client:
+                return []
+                
+            response = genai.embed_content(
+                model=self.model,
+                content=query,
+                task_type="retrieval_query"
+            )
+            query_embedding = response['embedding']
+            
             if not query_embedding:
                 return []
 
