@@ -11,7 +11,7 @@ sys.path.append(
 
 from sqlalchemy import create_engine, text
 from app.core.database import Base, create_database_engine
-from app.models import User, Newsletter, UserPreferences, NewsletterHistory
+from app.models import User, Newsletter, UserPreferences, NewsletterHistory, NewsletterRating
 import logging
 
 logging.basicConfig(level=logging.INFO)
