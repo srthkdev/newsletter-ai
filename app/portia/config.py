@@ -13,7 +13,7 @@ def get_portia_config():
     if google_api_key:
         config = Config.from_default(
             llm_provider=LLMProvider.GOOGLE,
-            default_model="google/gemini-2.0-flash",
+            default_model="google/gemini-2.5-flash",
             google_api_key=google_api_key,
         )
     else:
@@ -48,28 +48,28 @@ AGENT_CONFIGS = {
     "research_agent": {
         "name": "NewsletterResearcher",
         "description": "Discovers and curates newsletter content using Tavily API",
-        "model": "google/gemini-2.0-flash",
+        "model": "google/gemini-2.5-flash",
         "temperature": 0.7,
         "max_tokens": 2000,
     },
     "writing_agent": {
         "name": "NewsletterWriter",
         "description": "Generates engaging blog-style newsletter content",
-        "model": "google/gemini-2.0-flash",
+        "model": "google/gemini-2.5-flash",
         "temperature": 0.8,
         "max_tokens": 3000,
     },
     "preference_agent": {
         "name": "PreferenceManager",
         "description": "Manages user preferences and personalization",
-        "model": "google/gemini-2.0-flash",
+        "model": "google/gemini-2.5-flash",
         "temperature": 0.3,
         "max_tokens": 1000,
     },
     "custom_prompt_agent": {
         "name": "CustomPromptProcessor",
         "description": "Processes custom user prompts for newsletter generation",
-        "model": "google/gemini-2.0-flash",
+        "model": "google/gemini-2.5-flash",
         "temperature": 0.6,
         "max_tokens": 2000,
     },

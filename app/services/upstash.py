@@ -14,7 +14,7 @@ vector_client = None
 def get_redis_client():
     """Get Upstash Redis client"""
     global redis_client
-    if redis_client is None and settings.UPSTASH_REDIS_URL:
+    if redis_client is None and settings.UPSTASH_REDIS_REST_URL:
         try:
             from upstash_redis import Redis
 
@@ -33,9 +33,9 @@ def get_vector_client():
     global vector_client
     if vector_client is None and settings.UPSTASH_VECTOR_URL:
         try:
-            from upstash_vector import Vector
+            from upstash_vector import Index
 
-            vector_client = Vector(
+            vector_client = Index(
                 url=settings.UPSTASH_VECTOR_URL, token=settings.UPSTASH_VECTOR_TOKEN
             )
         except ImportError:
@@ -58,7 +58,7 @@ class CacheService:
         if not self.redis:
             return None
         try:
-            value = await self.redis.get(key)
+            value = self.redis.get(key)
             return json.loads(value) if value else None
         except Exception as e:
             print(f"Cache get error: {e}")
@@ -69,7 +69,7 @@ class CacheService:
         if not self.redis:
             return False
         try:
-            await self.redis.set(key, json.dumps(value), ex=ttl)
+            self.redis.set(key, json.dumps(value), ex=ttl)
             return True
         except Exception as e:
             print(f"Cache set error: {e}")
@@ -80,7 +80,7 @@ class CacheService:
         if not self.redis:
             return False
         try:
-            await self.redis.delete(key)
+            self.redis.delete(key)
             return True
         except Exception as e:
             print(f"Cache delete error: {e}")

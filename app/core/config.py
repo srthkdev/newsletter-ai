@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     PORTIA_API_KEY: Optional[str] = None
 
     # Upstash Redis
-    UPSTASH_REDIS_URL: Optional[str] = None
-    UPSTASH_REDIS_TOKEN: Optional[str] = None
+    UPSTASH_REDIS_REST_URL: Optional[str] = None
+    UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
 
     # Upstash Vector
     UPSTASH_VECTOR_URL: Optional[str] = None
