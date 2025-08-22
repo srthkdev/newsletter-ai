@@ -1,36 +1,138 @@
-fastapi
-uvicorn[standard]
-pydantic[email]
-pydantic-settings
-email-validator
-sqlalchemy
-python-multipart
-python-jose[cryptography]
-passlib[bcrypt]
-python-dotenv
-httpx
+# Core FastAPI and web framework
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+starlette==0.47.2
 
-# Portia AI SDK
-portia-sdk-python
+# Data validation and settings
+pydantic[email]==2.11.7
+pydantic-core==2.33.2
+pydantic-settings==2.10.1
+email-validator==2.2.0
+typing-extensions==4.14.1
+typing-inspection==0.4.1
+annotated-types==0.7.0
+
+# Database and ORM
+sqlalchemy==2.0.43
+psycopg2-binary==2.9.10  # PostgreSQL adapter for Neon
+
+# Authentication and security
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.20
+
+# Configuration and environment
+python-dotenv==1.1.1
+
+# HTTP client
+httpx==0.28.1
+anyio==4.10.0
+sniffio==1.3.1
+idna==3.10
+certifi==2025.8.3
+httpcore==1.0.9
+h11==0.16.0
+
+# Portia AI SDK and dependencies
+portia-sdk-python==0.7.1
+instructor==1.10.0
+litellm==1.75.9
+loguru==0.7.3
+anthropic==0.64.0
+click==8.2.1
+
+# LangChain ecosystem
+langchain==0.3.27
+langchain-core==0.3.74
+langchain-openai==0.3.31
+langchain-anthropic==0.3.19
+langchain-text-splitters==0.3.9
+langsmith==0.4.15
+
+# AI and ML dependencies
+openai==1.101.0
+tiktoken==0.11.0
 
 # External APIs
-resend
-tavily-python
-
-# Streamlit for frontend
-streamlit
+resend==2.13.0
+tavily-python==0.7.11
 
 # Cloud services
-psycopg2-binary  # PostgreSQL adapter for Neon
-upstash-redis  # Upstash Redis client
-upstash-vector  # Upstash Vector for embeddings
+upstash-redis==1.4.0
+upstash-vector==0.8.0
+redis==6.4.0
 
-# Vector embeddings
-openai  # For embeddings
-sentence-transformers  # Alternative embedding model
+# Data processing and utilities
+orjson==3.11.2
+jsonpatch==1.33
+jsonpointer==3.0.0
+jsonschema==4.25.1
+jsonschema-specifications==2025.4.1
+referencing==0.36.2
+rpds-py==0.27.0
 
-# Date parsing
-python-dateutil
+# Rich text and CLI
+rich==14.1.0
+typer==0.16.1
+shellingham==1.5.4
+markdown-it-py==4.0.0
+mdurl==0.1.2
+pygments==2.19.2
 
-# Scheduling
-schedule
+# Async and HTTP
+aiohttp==3.12.15
+aiohappyeyeballs==2.6.1
+aiosignal==1.4.0
+attrs==25.3.0
+frozenlist==1.7.0
+multidict==6.6.4
+propcache==0.3.2
+yarl==1.20.1
+
+# Utilities and parsing
+requests==2.32.5
+requests-toolbelt==1.0.0
+charset-normalizer==3.4.3
+urllib3==2.5.0
+packaging==25.0
+tqdm==4.67.1
+tenacity==9.1.2
+diskcache==5.6.3
+
+# Template and rendering
+jinja2==3.1.6
+markupsafe==3.0.2
+docstring-parser==0.17.0
+
+# Data compression and serialization
+zstandard==0.24.0
+importlib-metadata==8.7.0
+zipp==3.23.0
+
+# Date and scheduling
+python-dateutil==2.9.0
+schedule==1.2.2
+
+# Streamlit for frontend
+streamlit==1.48.1
+altair==5.4.1
+blinker==1.8.2
+cachetools==5.4.0
+gitdb==4.0.11
+gitpython==3.1.43
+protobuf==5.27.3
+pyarrow==17.0.0
+pydeck==0.9.1
+toml==0.10.2
+tornado==6.4.1
+tzdata==2024.1
+watchdog==4.0.1
+
+# Development and utilities
+distro==1.9.0
+filelock==3.19.1
+fsspec==2025.7.0
+regex==2025.7.34
+pyyaml==6.0.2
+setuptools==72.1.0
+jiter==0.10.0
