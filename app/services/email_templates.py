@@ -419,6 +419,9 @@ class EmailTemplateManager:
                     {f'<a href="{article.get("url", "")}" style="color: #667eea;">Read more →</a>' if article.get("url") else ""}
                 </div>
                 '''
+            elif isinstance(article, str):
+                # Handle string articles from writing agent (already formatted)
+                html += f'<div class="article" style="color: #4a5568; margin: 15px 0;">{article}</div>'
         
         html += '</div>'
         return html
@@ -445,6 +448,9 @@ class EmailTemplateManager:
                     {f'<a href="{article.get("url", "")}" style="color: #dc2626; font-weight: bold;">Full Story →</a>' if article.get("url") else ""}
                 </div>
                 '''
+            elif isinstance(article, str):
+                # Handle string articles from writing agent
+                html += f'<div class="urgent-content" style="color: #1a202c; font-weight: 500; margin: 15px 0;">{article}</div>'
         
         html += '</div>'
         return html
@@ -474,6 +480,9 @@ class EmailTemplateManager:
                     {f'<a href="{article.get("url", "")}" style="color: #059669;">View Research →</a>' if article.get("url") else ""}
                 </div>
                 '''
+            elif isinstance(article, str):
+                # Handle string articles from writing agent
+                html += f'<div class="article" style="color: #374151; margin: 15px 0;">{article}</div>'
         
         html += '</div>'
         return html

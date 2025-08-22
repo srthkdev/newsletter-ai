@@ -285,7 +285,7 @@ Newsletter AI - Intelligent newsletter creation powered by AI
                     "text": plain_text,
                     "tags": [
                         {"name": "type", "value": "newsletter"},
-                        {"name": "user_email", "value": email}
+                        {"name": "user_id", "value": email.replace("@", "_at_").replace(".", "_dot_").replace("-", "_dash_")[:50]}
                     ]
                 }
 
