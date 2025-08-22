@@ -33,7 +33,7 @@ st.markdown(
     
     .monitoring-header {
         background: linear-gradient(135deg, #1e293b, #475569);
-        color: white;
+        color: #ffffff;
         padding: 2rem;
         border-radius: 15px;
         margin: 1rem 0;

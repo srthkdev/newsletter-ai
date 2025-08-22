@@ -32,7 +32,7 @@ st.markdown(
     
     .analytics-header {
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff;
         padding: 2rem;
         border-radius: 15px;
         margin: 1rem 0;

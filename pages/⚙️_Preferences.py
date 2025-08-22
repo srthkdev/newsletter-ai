@@ -81,13 +81,13 @@ st.markdown(
     .topic-chip:hover {
         transform: scale(1.05);
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff;
         border-color: #667eea;
     }
     
     .section-header {
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff;
         padding: 1.5rem;
         border-radius: 12px;
         margin: 1rem 0;

@@ -29,7 +29,7 @@ st.markdown(
     
     .create-header {
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff;
         padding: 2rem;
         border-radius: 15px;
         margin: 1rem 0;
@@ -65,7 +65,7 @@ st.markdown(
     
     .example-prompt:hover {
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff;
         transform: scale(1.02);
         border-color: #667eea;
         box-shadow: 0 6px 15px rgba(102, 126, 234, 0.3);
@@ -203,7 +203,7 @@ st.markdown(
     
     .stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff;
         box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
     
