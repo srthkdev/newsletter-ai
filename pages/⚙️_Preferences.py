@@ -34,6 +34,15 @@ st.markdown(
         margin: 1.5rem 0;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         transition: all 0.3s ease;
+        color: #1a202c;
+    }
+    
+    .preference-section h3, .preference-section h4 {
+        color: #1a202c;
+    }
+    
+    .preference-section p {
+        color: #2d3748;
     }
     
     .preference-section:hover {
@@ -103,6 +112,11 @@ st.markdown(
         border-left: 4px solid #f59e0b;
         margin: 1rem 0;
         box-shadow: 0 4px 6px rgba(245, 158, 11, 0.1);
+        color: #92400e;
+    }
+    
+    .recommendation-card h4 {
+        color: #92400e;
     }
     
     .stats-grid {
@@ -120,6 +134,7 @@ st.markdown(
         border: 1px solid #e2e8f0;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         transition: all 0.3s ease;
+        color: #1a202c;
     }
     
     .stat-card:hover {
@@ -136,7 +151,7 @@ st.markdown(
     
     .stat-label {
         font-size: 0.875rem;
-        color: #6b7280;
+        color: #2d3748;
         font-weight: 500;
     }
     
@@ -231,17 +246,35 @@ FREQUENCY_OPTIONS = {
 }
 
 
+def get_auth_headers():
+    """Get authentication headers for API requests"""
+    session_token = st.session_state.get("session_token")
+    if session_token:
+        return {"Authorization": f"Bearer {session_token}"}
+    return {}
+
+
 def get_user_preferences() -> Optional[Dict[str, Any]]:
     """Get current user preferences from API"""
     try:
-        # For now, we'll use session state to simulate user authentication
-        # In a real app, this would use proper authentication
-        user_id = st.session_state.get("user_id", "demo_user")
+        auth_headers = get_auth_headers()
+        if not auth_headers:
+            st.error("Please log in to view your preferences")
+            st.switch_page("streamlit_app.py")
+            return None
 
-        response = requests.get(f"{API_BASE_URL}/preferences/{user_id}", timeout=10)
+        response = requests.get(
+            f"{API_BASE_URL}/preferences/", 
+            headers=auth_headers,
+            timeout=10
+        )
 
         if response.status_code == 200:
             return response.json()
+        elif response.status_code == 401:
+            st.error("Your session has expired. Please log in again.")
+            st.switch_page("streamlit_app.py")
+            return None
         else:
             return None
 
@@ -253,14 +286,21 @@ def get_user_preferences() -> Optional[Dict[str, Any]]:
 def save_user_preferences(preferences: Dict[str, Any]) -> tuple[bool, str]:
     """Save user preferences to API"""
     try:
-        user_id = st.session_state.get("user_id", "demo_user")
+        auth_headers = get_auth_headers()
+        if not auth_headers:
+            return False, "Authentication required. Please log in."
 
         response = requests.put(
-            f"{API_BASE_URL}/preferences/{user_id}", json=preferences, timeout=10
+            f"{API_BASE_URL}/preferences/", 
+            headers=auth_headers,
+            json=preferences, 
+            timeout=10
         )
 
         if response.status_code == 200:
             return True, "Preferences saved successfully!"
+        elif response.status_code == 401:
+            return False, "Your session has expired. Please log in again."
         else:
             error_data = response.json()
             return False, error_data.get("detail", "Failed to save preferences")
@@ -274,10 +314,14 @@ def save_user_preferences(preferences: Dict[str, Any]) -> tuple[bool, str]:
 def get_preference_recommendations() -> Optional[List[Dict[str, Any]]]:
     """Get AI-powered preference recommendations"""
     try:
-        user_id = st.session_state.get("user_id", "demo_user")
+        auth_headers = get_auth_headers()
+        if not auth_headers:
+            return None
 
         response = requests.get(
-            f"{API_BASE_URL}/preferences/{user_id}/recommendations", timeout=10
+            f"{API_BASE_URL}/preferences/recommendations", 
+            headers=auth_headers,
+            timeout=10
         )
 
         if response.status_code == 200:
@@ -308,6 +352,13 @@ def calculate_setup_progress(preferences: Dict[str, Any]) -> float:
 
 def main():
     """Enhanced main preferences page with modern UI and interactive features"""
+    # Check authentication
+    session_token = st.session_state.get("session_token")
+    if not session_token:
+        st.error("🔒 Please log in to access your preferences")
+        if st.button("Go to Login", type="primary"):
+            st.switch_page("streamlit_app.py")
+        return
 
     # Header with modern styling
     st.markdown(
@@ -555,17 +606,19 @@ def show_style_preferences(current_preferences: Dict[str, Any]):
     if "selected_tone" not in st.session_state:
         st.session_state.selected_tone = current_preferences.get("tone", "professional")
 
-    for tone_key, tone_info in TONE_OPTIONS.items():
-        is_selected = st.session_state.selected_tone == tone_key
-
-        if st.radio(
-            "Select tone:",
-            options=list(TONE_OPTIONS.keys()),
-            format_func=lambda x: f"**{TONE_OPTIONS[x]['label']}** - {TONE_OPTIONS[x]['description']}",
-            index=list(TONE_OPTIONS.keys()).index(st.session_state.selected_tone),
-            key="selected_tone",
-        ):
-            st.session_state.preferences_changed = True
+    # Single radio button for tone selection
+    selected_tone = st.radio(
+        "Select tone:",
+        options=list(TONE_OPTIONS.keys()),
+        format_func=lambda x: f"**{TONE_OPTIONS[x]['label']}** - {TONE_OPTIONS[x]['description']}",
+        index=list(TONE_OPTIONS.keys()).index(st.session_state.selected_tone),
+        key="tone_selection",
+    )
+    
+    # Update session state if selection changed
+    if selected_tone != st.session_state.selected_tone:
+        st.session_state.selected_tone = selected_tone
+        st.session_state.preferences_changed = True
 
     # Tone preview
     st.markdown("#### Tone Preview")

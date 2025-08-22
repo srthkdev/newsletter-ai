@@ -17,6 +17,14 @@ st.set_page_config(
 # API Configuration
 API_BASE_URL = "http://localhost:8000/api/v1"
 
+
+def get_auth_headers():
+    """Get authentication headers for API requests"""
+    session_token = st.session_state.get("session_token")
+    if session_token:
+        return {"Authorization": f"Bearer {session_token}"}
+    return {}
+
 # Custom CSS
 st.markdown(
     """
@@ -45,6 +53,15 @@ st.markdown(
         margin: 1.5rem 0;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         transition: all 0.3s ease;
+        color: #1a202c;
+    }
+    
+    .prompt-section h3, .prompt-section h4 {
+        color: #1a202c;
+    }
+    
+    .prompt-section p {
+        color: #2d3748;
     }
     
     .prompt-section:hover {
@@ -71,6 +88,13 @@ st.markdown(
         box-shadow: 0 6px 15px rgba(102, 126, 234, 0.3);
     }
     
+    .example-prompt h4,
+    .example-prompt:hover h4,
+    .example-prompt p,
+    .example-prompt:hover p {
+        color: inherit;
+    }
+    
     .example-category {
         background: white;
         padding: 1.5rem;
@@ -78,6 +102,16 @@ st.markdown(
         border: 1px solid #e2e8f0;
         margin: 1rem 0;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        color: #1a202c;
+    }
+    
+    .example-category h4 {
+        color: #1a202c;
+        margin-bottom: 1rem;
+    }
+    
+    .example-category p {
+        color: #2d3748;
     }
     
     .success-message {
@@ -119,6 +153,11 @@ st.markdown(
         margin: 1.5rem 0;
         text-align: center;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        color: #1a202c;
+    }
+    
+    .generation-status h3, .generation-status h4 {
+        color: #1a202c;
     }
     
     .preview-card {
@@ -128,6 +167,15 @@ st.markdown(
         border: 1px solid #e2e8f0;
         margin: 1.5rem 0;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        color: #1a202c;
+    }
+    
+    .preview-card h3, .preview-card h4 {
+        color: #1a202c;
+    }
+    
+    .preview-card p {
+        color: #2d3748;
     }
     
     .stats-row {
@@ -146,6 +194,7 @@ st.markdown(
         text-align: center;
         min-width: 120px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        color: #1a202c;
     }
     
     .prompt-tips {
@@ -154,6 +203,12 @@ st.markdown(
         border-radius: 12px;
         border-left: 4px solid #22c55e;
         margin: 1rem 0;
+        color: #1a202c;
+    }
+    
+    .prompt-tips h4,
+    .prompt-tips p {
+        color: #1a202c;
     }
     
     .advanced-option {
@@ -163,6 +218,15 @@ st.markdown(
         border: 1px solid #e2e8f0;
         margin: 1rem 0;
         transition: all 0.3s ease;
+        color: #1a202c;
+    }
+    
+    .advanced-option h4 {
+        color: #1a202c;
+    }
+    
+    .advanced-option p {
+        color: #2d3748;
     }
     
     .advanced-option:hover {
@@ -175,18 +239,22 @@ st.markdown(
         to { opacity: 1; transform: translateY(0); }
     }
     
-    /* Enhanced text area styling */
-    .stTextArea > div > div > textarea {
-        border-radius: 12px;
+    /* Input field improvements for better visibility */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > div {
+        border-radius: 10px;
         border: 2px solid #e2e8f0;
-        padding: 1rem;
+        padding: 0.75rem;
         font-size: 1rem;
-        line-height: 1.6;
         transition: border-color 0.3s ease;
-        font-family: 'Inter', sans-serif;
+        background-color: #ffffff;
+        color: #1a202c;
     }
     
-    .stTextArea > div > div > textarea:focus {
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div > div:focus {
         border-color: #667eea;
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
@@ -266,11 +334,21 @@ def load_example_prompts():
 def get_user_preferences() -> Optional[Dict[str, Any]]:
     """Get current user preferences"""
     try:
-        user_id = st.session_state.get("user_id", "demo_user")
-        response = requests.get(f"{API_BASE_URL}/preferences/{user_id}", timeout=10)
+        auth_headers = get_auth_headers()
+        if not auth_headers:
+            return None
+            
+        response = requests.get(
+            f"{API_BASE_URL}/preferences/", 
+            headers=auth_headers,
+            timeout=10
+        )
 
         if response.status_code == 200:
             return response.json()
+        elif response.status_code == 401:
+            st.error("Your session has expired. Please log in again.")
+            st.switch_page("streamlit_app.py")
         return None
     except Exception:
         return None
@@ -335,10 +413,11 @@ def generate_custom_newsletter(
 ) -> tuple[bool, str, Optional[Dict[str, Any]]]:
     """Generate newsletter from custom prompt"""
     try:
-        user_id = st.session_state.get("user_id", "demo_user")
+        auth_headers = get_auth_headers()
+        if not auth_headers:
+            return False, "Authentication required. Please log in.", None
 
         payload = {
-            "user_id": user_id,
             "custom_prompt": prompt,
             "user_preferences": preferences,
             "use_rag": True,
@@ -347,6 +426,7 @@ def generate_custom_newsletter(
 
         response = requests.post(
             f"{API_BASE_URL}/newsletters/generate-custom",
+            headers=auth_headers,
             json=payload,
             timeout=60,  # Custom generation might take longer
         )
@@ -354,6 +434,8 @@ def generate_custom_newsletter(
         if response.status_code == 200:
             data = response.json()
             return True, "Newsletter generated successfully!", data
+        elif response.status_code == 401:
+            return False, "Your session has expired. Please log in again.", None
         else:
             error_data = response.json()
             return (
@@ -397,6 +479,13 @@ def send_newsletter(newsletter_id: str) -> tuple[bool, str]:
 
 def main():
     """Enhanced custom newsletter creation page with modern UI"""
+    # Check authentication
+    session_token = st.session_state.get("session_token")
+    if not session_token:
+        st.error("🔒 Please log in to create newsletters")
+        if st.button("Go to Login", type="primary"):
+            st.switch_page("streamlit_app.py")
+        return
 
     # Enhanced header
     st.markdown(
@@ -1021,7 +1110,48 @@ def show_generation_section():
 
         with col2:
             if st.button("📊 View Full Content"):
-                st.info("🚧 Full content viewer coming soon!")
+                # Display full newsletter content in an expandable section
+                with st.expander("📄 Full Newsletter Content", expanded=True):
+                    if "title" in newsletter:
+                        st.markdown(f"# {newsletter['title']}")
+                        st.markdown("---")
+                    
+                    # Display full content
+                    content = newsletter.get("content", "")
+                    if content:
+                        # If content is HTML, display it properly
+                        if "<html>" in content.lower() or "<body>" in content.lower():
+                            st.markdown("**Email HTML Content:**")
+                            st.components.v1.html(content, height=600, scrolling=True)
+                        else:
+                            st.markdown(content)
+                    else:
+                        st.warning("No content available to display")
+                    
+                    # Display newsletter metadata
+                    st.markdown("---")
+                    st.markdown("### 📊 Newsletter Information")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Articles", newsletter.get("article_count", 0))
+                    with col2:
+                        st.metric("Word Count", newsletter.get("word_count", 0))
+                    with col3:
+                        st.metric("Read Time", f"{newsletter.get('read_time', 5)} min")
+                    
+                    # Show topics if available
+                    if newsletter.get("topics"):
+                        st.markdown("**Topics Covered:**")
+                        topics = newsletter["topics"]
+                        if isinstance(topics, list):
+                            st.write(", ".join(topics))
+                        else:
+                            st.write(topics)
+                    
+                    # Show generation timestamp if available
+                    if newsletter.get("created_at"):
+                        st.markdown(f"**Generated:** {newsletter['created_at']}")
 
 
 if __name__ == "__main__":

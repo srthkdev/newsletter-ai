@@ -48,6 +48,15 @@ st.markdown(
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         margin: 1rem 0;
         transition: all 0.3s ease;
+        color: #1a202c;
+    }
+    
+    .insight-card h3, .insight-card h4 {
+        color: #1a202c;
+    }
+    
+    .insight-card p {
+        color: #2d3748;
     }
     
     .insight-card:hover {
@@ -85,6 +94,11 @@ st.markdown(
         border-radius: 12px;
         border-left: 4px solid #f59e0b;
         margin: 1rem 0;
+        color: #92400e;
+    }
+    
+    .recommendation-card h4 {
+        color: #92400e;
     }
     
     .rag-insight {
@@ -93,6 +107,11 @@ st.markdown(
         border-radius: 12px;
         border-left: 4px solid #6366f1;
         margin: 1rem 0;
+        color: #3730a3;
+    }
+    
+    .rag-insight h4 {
+        color: #3730a3;
     }
     
     .stats-grid {
@@ -110,6 +129,7 @@ st.markdown(
         border: 1px solid #e2e8f0;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         transition: all 0.3s ease;
+        color: #1a202c;
     }
     
     .stat-card:hover {
@@ -126,7 +146,7 @@ st.markdown(
     
     .stat-label {
         font-size: 1rem;
-        color: #6b7280;
+        color: #2d3748;
         font-weight: 500;
     }
     
@@ -136,6 +156,11 @@ st.markdown(
         border-radius: 12px;
         border: 1px solid #e2e8f0;
         margin: 1.5rem 0;
+        color: #1a202c;
+    }
+    
+    .export-section h3, .export-section h4 {
+        color: #1a202c;
     }
 </style>
 """,

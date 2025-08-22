@@ -86,7 +86,7 @@ st.markdown(
     }
     
     .feature-card p {
-        color: #4a5568;
+        color: #2d3748;
         line-height: 1.6;
         margin: 0;
     }
@@ -182,7 +182,7 @@ st.markdown(
     }
     
     .process-step p {
-        color: #4a5568;
+        color: #2d3748;
         margin: 0;
         font-size: 0.9rem;
         line-height: 1.5;
@@ -250,7 +250,7 @@ st.markdown(
     
     .stat-label {
         font-size: 1rem;
-        color: #4a5568;
+        color: #2d3748;
         font-weight: 500;
     }
 </style>
@@ -678,6 +678,10 @@ def show_otp_verification():
 
                     if success:
                         st.session_state.user_data = user_data
+                        # Store session token and user ID for authenticated requests
+                        if user_data and 'session_token' in user_data:
+                            st.session_state.session_token = user_data['session_token']
+                            st.session_state.user_id = user_data['user_id']
                         st.session_state.step = "success"
                         st.rerun()
                     else:
@@ -746,7 +750,7 @@ def show_success_page():
             if st.button(
                 "📊 Go to Dashboard", type="primary", use_container_width=True
             ):
-                st.switch_page("pages/📊_Dashboard.py")
+                st.switch_page("pages/1_📊_Dashboard.py")
 
         with col_btn2:
             if st.button("⚙️ Set Preferences", use_container_width=True):
