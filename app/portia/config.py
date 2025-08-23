@@ -73,4 +73,11 @@ AGENT_CONFIGS = {
         "temperature": 0.6,
         "max_tokens": 2000,
     },
+    "mindmap_agent": {
+        "name": "MindmapGenerator",
+        "description": "Generates interactive mindmaps from newsletter content",
+        "model": "google/gemini-2.5-flash",
+        "temperature": 0.5,
+        "max_tokens": 2500,
+    },
 }

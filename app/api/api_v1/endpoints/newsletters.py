@@ -123,6 +123,8 @@ async def get_newsletters(
                 "conclusion": newsletter.conclusion,
                 "content_sections": newsletter.content_sections or [],
                 "html_content": newsletter.html_content,
+                "mindmap_markdown": newsletter.mindmap_markdown,  # Add mindmap data
+                "mindmap_agent_data": getattr(newsletter, 'mindmap_agent_data', {}),
                 "topics": getattr(newsletter, 'topics_covered', []),
                 "sources_used": getattr(newsletter, 'sources_used', []),
                 "word_count": getattr(newsletter, 'word_count', 0),
@@ -184,6 +186,8 @@ async def generate_newsletter(
                 "main_content": create_formatted_content(newsletter_obj),
                 "html_content": newsletter_obj.get("html_content", ""),
                 "summary": newsletter_obj.get("introduction", "")[:200] + "..." if newsletter_obj.get("introduction") else "AI-generated newsletter with personalized content",
+                "mindmap_markdown": newsletter_obj.get("mindmap_markdown", ""),  # Add mindmap data
+                "mindmap_agent_data": result.get("steps", {}).get("mindmap", {}),  # Store mindmap generation metadata
                 "status": NewsletterStatus.SENT if send_immediately else NewsletterStatus.READY,
                 "content_sections": newsletter_obj.get("sections", []),
                 "sources_used": result.get("articles", [])[:5],  # Store some articles as sources
@@ -346,6 +350,8 @@ async def get_newsletter(newsletter_id: str, db: Session = Depends(get_db)):
             "html_content": newsletter.html_content,
             "plain_text_content": newsletter.plain_text_content,
             "summary": newsletter.summary,
+            "mindmap_markdown": newsletter.mindmap_markdown,  # Add mindmap data
+            "mindmap_agent_data": getattr(newsletter, 'mindmap_agent_data', {}),
             "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status),
             "newsletter_type": newsletter.newsletter_type.value if hasattr(newsletter.newsletter_type, 'value') else str(newsletter.newsletter_type),
             "word_count": newsletter.word_count or 0,
@@ -954,4 +960,106 @@ async def update_newsletter_rating(
         raise
     except Exception as e:
         logger.error(f"Failed to update rating: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/mindmap/{newsletter_id}")
+async def generate_newsletter_mindmap(
+    newsletter_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token)
+):
+    """Generate or regenerate mindmap for a specific newsletter"""
+    try:
+        from app.utils.db_utils import db_utils
+        from app.portia.agent_orchestrator import agent_orchestrator
+        
+        # Get newsletter data
+        newsletter = db_utils.get_newsletter_with_history(newsletter_id)
+        if not newsletter:
+            raise HTTPException(status_code=404, detail="Newsletter not found")
+        
+        # Check if user owns this newsletter
+        if str(newsletter.user_id) != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Prepare context for mindmap generation
+        mindmap_context = {
+            "user_id": str(current_user.id),
+            "newsletter_content": {
+                "title": newsletter.title,
+                "introduction": newsletter.introduction,
+                "sections": newsletter.content_sections or [],
+                "conclusion": newsletter.conclusion,
+                "summary": newsletter.summary
+            },
+            "articles": newsletter.sources_used or [],
+            "topics": newsletter.topics_covered or [],
+            "newsletter_id": newsletter_id
+        }
+        
+        # Generate mindmap using the mindmap agent
+        mindmap_result = await agent_orchestrator.mindmap_agent.execute_task(
+            "generate_mindmap", mindmap_context
+        )
+        
+        if mindmap_result["success"]:
+            # Update newsletter with new mindmap
+            newsletter.mindmap_markdown = mindmap_result["mindmap_markdown"]
+            newsletter.mindmap_agent_data = mindmap_result.get("metadata", {})
+            
+            # Save to database
+            db.commit()
+            
+            return {
+                "success": True,
+                "mindmap_markdown": mindmap_result["mindmap_markdown"],
+                "metadata": mindmap_result.get("metadata", {}),
+                "newsletter_id": newsletter_id,
+                "message": "Mindmap generated successfully"
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to generate mindmap: {mindmap_result.get('error', 'Unknown error')}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate mindmap: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/mindmap/{newsletter_id}")
+async def get_newsletter_mindmap(
+    newsletter_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token)
+):
+    """Get mindmap for a specific newsletter"""
+    try:
+        from app.utils.db_utils import db_utils
+        
+        # Get newsletter data
+        newsletter = db_utils.get_newsletter_with_history(newsletter_id)
+        if not newsletter:
+            raise HTTPException(status_code=404, detail="Newsletter not found")
+        
+        # Check if user owns this newsletter
+        if str(newsletter.user_id) != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        return {
+            "success": True,
+            "mindmap_markdown": newsletter.mindmap_markdown,
+            "mindmap_agent_data": getattr(newsletter, 'mindmap_agent_data', {}),
+            "newsletter_id": newsletter_id,
+            "has_mindmap": bool(newsletter.mindmap_markdown)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get mindmap: {e}")
         raise HTTPException(status_code=500, detail=str(e))

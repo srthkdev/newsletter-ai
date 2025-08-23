@@ -71,6 +71,8 @@ class Newsletter(Base):
     # AI generation metadata
     research_agent_data = Column(JSON, default=dict)  # Research agent execution data
     writing_agent_data = Column(JSON, default=dict)  # Writing agent execution data
+    mindmap_markdown = Column(Text, nullable=True)  # Generated mindmap in markdown format
+    mindmap_agent_data = Column(JSON, default=dict)  # Mindmap agent execution data
     generation_time_seconds = Column(Float, nullable=True)
 
     # Timestamps

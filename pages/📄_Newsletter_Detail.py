@@ -165,6 +165,60 @@ st.markdown(
         margin: 2rem 0;
         text-align: center;
     }
+    .mindmap-section {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        border-left: 5px solid #16a34a;
+        margin: 2rem 0;
+    }
+    .mindmap-container {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 1rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        min-height: 400px;
+        position: relative;
+    }
+    .mindmap-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .mindmap-title {
+        color: #16a34a;
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    .mindmap-controls {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .mindmap-btn {
+        background: #16a34a;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .mindmap-btn:hover {
+        background: #15803d;
+        transform: translateY(-1px);
+    }
+    .mindmap-fallback {
+        background: #f8fafc;
+        border: 2px dashed #cbd5e1;
+        border-radius: 8px;
+        padding: 2rem;
+        text-align: center;
+        color: #64748b;
+    }
     .star-rating {
         display: flex;
         justify-content: center;
@@ -412,7 +466,137 @@ def rate_newsletter(newsletter_id: str, rating: int, feedback: str = None) -> tu
         return False, f"Error rating newsletter: {str(e)}"
 
 
+def display_newsletter_mindmap(newsletter: Dict[str, Any]) -> None:
+    """Display newsletter mindmap if available"""
+    mindmap_markdown = newsletter.get('mindmap_markdown')
+    
+    if not mindmap_markdown:
+        # Check if we can generate a mindmap
+        st.markdown(
+            '''
+            <div class="mindmap-section">
+                <div class="mindmap-header">
+                    <h3 class="mindmap-title">🎨 Newsletter Mindmap</h3>
+                </div>
+                <div class="mindmap-fallback">
+                    <h4>🗺️ No Mindmap Available</h4>
+                    <p>This newsletter doesn't have a mindmap yet. Mindmaps provide visual overviews of newsletter content.</p>
+                    <p><strong>Note:</strong> Mindmaps are automatically generated for new newsletters.</p>
+                </div>
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        return
+    
+    # Display mindmap section
+    st.markdown(
+        '''
+        <div class="mindmap-section">
+            <div class="mindmap-header">
+                <h3 class="mindmap-title">🎨 Newsletter Mindmap</h3>
+                <div class="mindmap-controls">
+                    <button class="mindmap-btn" onclick="expandMindmap()">🔍 Expand</button>
+                    <button class="mindmap-btn" onclick="downloadMindmap()">💾 Download</button>
+                </div>
+            </div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    
+    # Create tabs for different views
+    mindmap_tab1, mindmap_tab2 = st.columns([2, 1])
+    
+    with mindmap_tab1:
+        st.markdown("**🗺️ Interactive Mindmap**")
+        
+        # Try to render with markmap if possible, otherwise show as markdown
+        try:
+            # Use HTML with markmap for interactive mindmap
+            mindmap_html = f"""
+            <div class="mindmap-container">
+                <div id="mindmap-{newsletter.get('id', 'default')}"></div>
+                <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.15"></script>
+                <script>
+                    const mindmapData = {{
+                        content: `{mindmap_markdown.replace('`', '\\`')}`,
+                        options: {{
+                            color: (d) => d.depth === 0 ? '#16a34a' : d.depth === 1 ? '#22c55e' : '#4ade80',
+                            fontSize: '16px',
+                            paddingX: 8,
+                            spacingHorizontal: 80,
+                            spacingVertical: 20
+                        }}
+                    }};
+                    
+                    // Simple fallback rendering
+                    document.getElementById('mindmap-{newsletter.get('id', 'default')}').innerHTML = 
+                        '<div style="font-family: monospace; white-space: pre-wrap; line-height: 1.6; color: #374151;">' + 
+                        mindmapData.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') + 
+                        '</div>';
+                </script>
+            </div>
+            """
+            
+            # Display the mindmap HTML
+            st.components.v1.html(mindmap_html, height=400, scrolling=True)
+            
+        except Exception as e:
+            # Fallback to plain markdown display
+            st.markdown("**Mindmap Preview:**")
+            with st.expander("🗺️ View Mindmap Content", expanded=True):
+                st.markdown(mindmap_markdown)
+    
+    with mindmap_tab2:
+        st.markdown("**📄 Mindmap Source**")
+        
+        # Show mindmap metadata
+        mindmap_data = newsletter.get('mindmap_agent_data', {})
+        if mindmap_data:
+            st.markdown("**Generation Info:**")
+            metadata = mindmap_data.get('metadata', {})
+            if metadata:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Topics", metadata.get('topics_count', 0))
+                with col2:
+                    st.metric("Articles", metadata.get('articles_count', 0))
+        
+        # Download options
+        st.markdown("**💾 Export Options:**")
+        
+        # Markdown download
+        st.download_button(
+            label="📄 Download Markdown",
+            data=mindmap_markdown,
+            file_name=f"mindmap_{newsletter.get('title', 'newsletter').replace(' ', '_')}.md",
+            mime="text/markdown"
+        )
+        
+        # Text preview
+        with st.expander("🔍 Preview Source"):
+            st.code(mindmap_markdown[:500] + "..." if len(mindmap_markdown) > 500 else mindmap_markdown, language="markdown")
+
+
 def get_newsletter_rating(newsletter_id: str) -> Optional[Dict[str, Any]]:
+    """Get existing rating for a newsletter"""
+    try:
+        user_id = st.session_state.get("user_id", 1)
+        
+        response = requests.get(
+            f"{API_BASE_URL}/newsletters/rating/{user_id}/{newsletter_id}",
+            timeout=10,
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                return data.get("rating")
+        return None
+        
+    except Exception:
+        return None
     """Get existing rating for a newsletter"""
     try:
         user_id = st.session_state.get("user_id", 1)
@@ -556,6 +740,12 @@ def main():
     # Section divider
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
     
+    # Display mindmap if available
+    display_newsletter_mindmap(newsletter)
+    
+    # Section divider
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    
     # Sources section
     sources = newsletter.get('sources_used', [])
     if sources:
@@ -607,7 +797,7 @@ def main():
         unsafe_allow_html=True
     )
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         if st.button("📧 Resend Email", use_container_width=True):
@@ -618,10 +808,29 @@ def main():
             st.info("🚧 Create similar newsletter coming soon!")
     
     with col3:
+        if st.button("🎨 Regenerate Mindmap", use_container_width=True):
+            with st.spinner("Regenerating mindmap..."):
+                try:
+                    auth_headers = get_auth_headers()
+                    response = requests.post(
+                        f"{API_BASE_URL}/newsletters/mindmap/{newsletter_id}",
+                        headers=auth_headers,
+                        timeout=30
+                    )
+                    
+                    if response.status_code == 200:
+                        st.success("✅ Mindmap regenerated successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to regenerate mindmap")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+    
+    with col4:
         if st.button("📊 View Analytics", use_container_width=True):
             st.switch_page("pages/📈_Analytics.py")
     
-    with col4:
+    with col5:
         if st.button("🏠 Back to Dashboard", use_container_width=True):
             st.switch_page("pages/1_📊_Dashboard.py")
     

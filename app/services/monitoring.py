@@ -96,6 +96,7 @@ class PortiaAgentMonitor:
             "writing_agent", 
             "preference_agent",
             "custom_prompt_agent",
+            "mindmap_agent",
             "agent_orchestrator"
         ]
         

@@ -558,6 +558,7 @@ def main():
 
             topics_str = ", ".join(newsletter.get("topics", []))
             newsletter_id = newsletter.get("id")
+            has_mindmap = bool(newsletter.get("mindmap_markdown"))
 
             # Get existing rating
             existing_rating = get_newsletter_rating(newsletter_id)
@@ -577,6 +578,7 @@ def main():
                     <span style="color: #6b7280;">👁️ {newsletter.get("open_rate", 0)}% opened</span>
                     <span style="color: #6b7280;">🔗 {newsletter.get("click_rate", 0)}% clicked</span>
                     {f'<span style="color: #f59e0b;">⭐ {current_rating}/5 rated</span>' if current_rating > 0 else '<span style="color: #9ca3af;">⭐ Not rated</span>'}
+                    <span style="color: {'#16a34a' if has_mindmap else '#9ca3af'};">🎨 {'Mindmap' if has_mindmap else 'No mindmap'}</span>
                 </div>
             </div>
             """,

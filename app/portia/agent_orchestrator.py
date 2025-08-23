@@ -8,6 +8,7 @@ from app.portia.research_agent import research_agent
 from app.portia.writing_agent import writing_agent
 from app.portia.preference_agent import preference_agent
 from app.portia.custom_prompt_agent import custom_prompt_agent
+from app.portia.mindmap_agent import mindmap_agent
 from app.services.email import email_service
 from app.services.memory import memory_service
 
@@ -20,6 +21,7 @@ class NewsletterAgentOrchestrator:
         self.writing_agent = writing_agent
         self.preference_agent = preference_agent
         self.custom_prompt_agent = custom_prompt_agent
+        self.mindmap_agent = mindmap_agent
         self.email_service = email_service
         self.memory_service = memory_service
 
@@ -154,6 +156,26 @@ class NewsletterAgentOrchestrator:
                 return workflow_results
 
             newsletter = writing_result["newsletter"]
+
+            # Step 4.5: Generate mindmap
+            print("🔄 Step 4.5: Generating newsletter mindmap...")
+            mindmap_context = {
+                "user_id": user_id,
+                "newsletter_content": newsletter,
+                "articles": articles,
+                "topics": research_context.get("topics", []),
+                "newsletter_id": f"newsletter_{datetime.utcnow().isoformat()}"
+            }
+            
+            mindmap_result = await self.mindmap_agent.execute_task(
+                "generate_mindmap", mindmap_context
+            )
+            
+            workflow_results["steps"]["mindmap"] = mindmap_result
+            
+            if mindmap_result["success"]:
+                newsletter["mindmap_markdown"] = mindmap_result["mindmap_markdown"]
+                newsletter["mindmap_metadata"] = mindmap_result.get("metadata", {})
 
             # Step 5: Format for email
             print("🔄 Step 5: Formatting newsletter for email...")
@@ -370,6 +392,11 @@ class NewsletterAgentOrchestrator:
             "custom_prompt_agent": {
                 "name": self.custom_prompt_agent.name,
                 "description": self.custom_prompt_agent.description,
+                "status": "active",
+            },
+            "mindmap_agent": {
+                "name": self.mindmap_agent.name,
+                "description": self.mindmap_agent.description,
                 "status": "active",
             },
             "email_service": {
