@@ -630,53 +630,10 @@ def main():
             col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
             with col1:
-                if st.button(f"👁️ View", key=f"view_{newsletter['id']}"):
-                    # Show newsletter content in an expandable section
-                    with st.expander(f"📄 {newsletter.get('title', 'Newsletter')} - Full Content", expanded=True):
-                        st.markdown(f"### {newsletter.get('title', 'Newsletter')}")
-                        st.markdown(f"**Sent:** {formatted_date}")
-                        st.markdown(f"**Topics:** {topics_str}")
-                        st.markdown("---")
-                        
-                        # Show actual newsletter content if available
-                        newsletter_content = newsletter.get('content', '')
-                        if newsletter_content:
-                            # Use the actual content from the newsletter
-                            st.markdown(newsletter_content)
-                        else:
-                            # Fallback content if no content is available
-                            fallback_content = f"""
-                        # {newsletter.get('title', 'Newsletter')}
-                        
-                        Welcome to your personalized newsletter covering {topics_str}!
-                        
-                        ## Newsletter Summary
-                        
-                        This newsletter contains {newsletter.get('article_count', 0)} carefully curated articles based on your preferences.
-                        
-                        *Content details are not available in the preview. Check your email for the full newsletter.*
-                        
-                        ---
-                        
-                        **Newsletter Statistics:**
-                        - Open Rate: {newsletter.get('open_rate', 0)}%
-                        - Click Rate: {newsletter.get('click_rate', 0)}%
-                        - Total Articles: {newsletter.get('article_count', 0)}
-                        
-                        Thank you for reading!
-                        """
-                            st.markdown(fallback_content)
-                        
-                        # Action buttons within the expanded view
-                        view_col1, view_col2 = st.columns(2)
-                        
-                        with view_col1:
-                            if st.button(f"📧 Resend Email", key=f"resend_from_view_{newsletter['id']}"):
-                                st.info("🚧 Resend functionality coming soon!")
-                        
-                        with view_col2:
-                            if st.button(f"🔄 Create Similar", key=f"similar_from_view_{newsletter['id']}"):
-                                st.info("🚧 Create similar newsletter coming soon!")
+                if st.button(f"👁️ View Full", key=f"view_{newsletter['id']}"):
+                    # Navigate to dedicated newsletter detail page
+                    st.session_state.newsletter_id = newsletter['id']
+                    st.switch_page("pages/📄_Newsletter_Detail.py")
 
             with col2:
                 if st.button(f"📧 Resend", key=f"resend_{newsletter['id']}"):

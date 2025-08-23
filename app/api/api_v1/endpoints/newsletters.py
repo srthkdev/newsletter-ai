@@ -16,23 +16,22 @@ router = APIRouter()
 
 
 def create_formatted_content(newsletter_obj: Dict[str, Any]) -> str:
-    """Create formatted newsletter content from newsletter object"""
+    """Create formatted newsletter content from newsletter object for beautiful display"""
     content_parts = []
     
-    # Add introduction
+    # Add introduction with proper formatting
     if newsletter_obj.get("introduction"):
-        content_parts.append(newsletter_obj["introduction"])
-        content_parts.append("\n\n")
+        content_parts.append(f"## Introduction\n\n{newsletter_obj['introduction']}\n\n")
     
-    # Add sections
+    # Add sections with enhanced formatting
     sections = newsletter_obj.get("sections", [])
-    for section in sections:
+    for section_idx, section in enumerate(sections):
         if isinstance(section, dict):
             # Add section title if available
-            if section.get("title"):
-                content_parts.append(f"## {section['title']}\n\n")
+            section_title = section.get("title", f"Section {section_idx + 1}")
+            content_parts.append(f"## {section_title}\n\n")
             
-            # Add articles in this section
+            # Add articles in this section with better formatting
             articles = section.get("articles", [])
             for i, article in enumerate(articles):
                 if isinstance(article, dict):
@@ -40,25 +39,33 @@ def create_formatted_content(newsletter_obj: Dict[str, Any]) -> str:
                     title = article.get("title", f"Article {i+1}")
                     content = article.get("content", "")
                     url = article.get("url", "")
+                    summary = article.get("summary", "")
                     
                     content_parts.append(f"### {title}\n\n")
+                    
+                    # Add summary if available
+                    if summary:
+                        content_parts.append(f"**Summary:** {summary}\n\n")
+                    
                     if content:
-                        # Truncate content to reasonable length
-                        truncated = content[:300] + "..." if len(content) > 300 else content
-                        content_parts.append(f"{truncated}\n\n")
+                        # Keep full content for detailed view
+                        content_parts.append(f"{content}\n\n")
+                    
                     if url:
-                        content_parts.append(f"[Read more]({url})\n\n")
+                        content_parts.append(f"[Read full article →]({url})\n\n")
+                        
                 elif isinstance(article, str):
                     # Handle string articles from writing agent (already formatted)
                     content_parts.append(f"{article}\n\n")
                 else:
                     # Fallback for any other type
                     content_parts.append(f"{str(article)}\n\n")
-            content_parts.append("\n")
+            
+            content_parts.append("---\n\n")  # Section separator
     
-    # Add conclusion
+    # Add conclusion with proper formatting
     if newsletter_obj.get("conclusion"):
-        content_parts.append(newsletter_obj["conclusion"])
+        content_parts.append(f"## Conclusion\n\n{newsletter_obj['conclusion']}\n\n")
     
     return "".join(content_parts)
 
@@ -95,15 +102,31 @@ async def get_newsletters(
         # Convert to response format
         newsletter_list = []
         for newsletter in newsletters:
+            # Create formatted content for display
+            formatted_content = create_formatted_content({
+                "introduction": newsletter.introduction,
+                "sections": newsletter.content_sections or [],
+                "conclusion": newsletter.conclusion
+            })
+            
             newsletter_dict = {
                 "id": str(newsletter.id),
                 "title": newsletter.title,
+                "subtitle": newsletter.subtitle,
                 "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status),
                 "created_at": newsletter.created_at.isoformat() if newsletter.created_at else None,
                 "sent_at": newsletter.sent_at.isoformat() if newsletter.sent_at else None,
                 "summary": newsletter.summary,
-                "content": newsletter.main_content,  # Add actual newsletter content
+                "content": formatted_content or newsletter.main_content,  # Use formatted content or fallback
+                "introduction": newsletter.introduction,
+                "main_content": newsletter.main_content,
+                "conclusion": newsletter.conclusion,
+                "content_sections": newsletter.content_sections or [],
+                "html_content": newsletter.html_content,
                 "topics": getattr(newsletter, 'topics_covered', []),
+                "sources_used": getattr(newsletter, 'sources_used', []),
+                "word_count": getattr(newsletter, 'word_count', 0),
+                "estimated_read_time": getattr(newsletter, 'estimated_read_time', 5),
                 "article_count": len(getattr(newsletter, 'content_sections', [])),
                 "open_rate": 85.2,  # Mock data for now - would come from email service
                 "click_rate": 12.4,  # Mock data for now - would come from email service
@@ -297,7 +320,7 @@ async def send_newsletter_now(user_id: str = "demo_user", db: Session = Depends(
 
 @router.get("/{newsletter_id}")
 async def get_newsletter(newsletter_id: str, db: Session = Depends(get_db)):
-    """Get specific newsletter"""
+    """Get specific newsletter with full content"""
     try:
         from app.utils.db_utils import db_utils
         
@@ -305,17 +328,42 @@ async def get_newsletter(newsletter_id: str, db: Session = Depends(get_db)):
         if not newsletter:
             raise HTTPException(status_code=404, detail="Newsletter not found")
         
+        # Create formatted content for display
+        formatted_content = create_formatted_content({
+            "introduction": newsletter.introduction,
+            "sections": newsletter.content_sections or [],
+            "conclusion": newsletter.conclusion
+        })
+        
         return {
             "id": str(newsletter.id),
             "title": newsletter.title,
-            "content": newsletter.main_content,
+            "subtitle": newsletter.subtitle,
+            "introduction": newsletter.introduction,
+            "main_content": newsletter.main_content,
+            "conclusion": newsletter.conclusion,
+            "content": formatted_content or newsletter.main_content,  # Formatted content for display
             "html_content": newsletter.html_content,
+            "plain_text_content": newsletter.plain_text_content,
             "summary": newsletter.summary,
             "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status),
+            "newsletter_type": newsletter.newsletter_type.value if hasattr(newsletter.newsletter_type, 'value') else str(newsletter.newsletter_type),
+            "word_count": newsletter.word_count or 0,
+            "estimated_read_time": newsletter.estimated_read_time or 5,
+            "custom_prompt": newsletter.custom_prompt,
+            "tone_used": newsletter.tone_used,
             "created_at": newsletter.created_at.isoformat() if newsletter.created_at else None,
+            "generated_at": newsletter.generated_at.isoformat() if newsletter.generated_at else None,
             "sent_at": newsletter.sent_at.isoformat() if newsletter.sent_at else None,
+            "updated_at": newsletter.updated_at.isoformat() if newsletter.updated_at else None,
+            "subject_line": newsletter.subject_line,
+            "email_template_used": newsletter.email_template_used,
             "content_sections": newsletter.content_sections or [],
+            "topics_covered": newsletter.topics_covered or [],
             "sources_used": newsletter.sources_used or [],
+            "research_agent_data": newsletter.research_agent_data or {},
+            "writing_agent_data": newsletter.writing_agent_data or {},
+            "generation_time_seconds": newsletter.generation_time_seconds,
         }
         
     except HTTPException:
