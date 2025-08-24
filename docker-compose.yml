@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  backend:
+    build: .
+    container_name: newsletter-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://newsletter_user:newsletter_pass@db:5432/newsletter_ai
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  # Streamlit Frontend
+  frontend:
+    build: .
+    container_name: newsletter-ai-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://backend:8000/api/v1
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    command: streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  # PostgreSQL Database (for local development)
+  db:
+    image: postgres:15-alpine
+    container_name: newsletter-ai-db
+    environment:
+      POSTGRES_DB: newsletter_ai
+      POSTGRES_USER: newsletter_user
+      POSTGRES_PASSWORD: newsletter_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Redis Cache (for local development)
+  redis:
+    image: redis:7-alpine
+    container_name: newsletter-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

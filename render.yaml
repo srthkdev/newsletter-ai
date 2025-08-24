@@ -1,0 +1,36 @@
+services:
+  # FastAPI Backend Service
+  - type: web
+    name: newsletter-ai-backend
+    runtime: python3
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    plan: starter  # Free tier available
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: newsletter-ai-db
+          property: connectionString
+    healthCheckPath: /health
+    
+  # Streamlit Frontend Service  
+  - type: web
+    name: newsletter-ai-frontend
+    runtime: python3
+    buildCommand: "pip install -r requirements.txt && pip install streamlit"
+    startCommand: "streamlit run streamlit_app.py --server.port $PORT --server.address 0.0.0.0"
+    plan: starter  # Free tier available
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: API_BASE_URL
+        value: https://newsletter-ai-backend.onrender.com/api/v1
+
+# Database
+databases:
+  - name: newsletter-ai-db
+    databaseName: newsletter_ai
+    user: newsletter_user
+    plan: starter  # Free PostgreSQL tier

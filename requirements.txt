@@ -1,39 +1,83 @@
-# Newsletter AI - Core Dependencies (optimized for uv)
-# Portia SDK automatically manages AI/LangChain dependencies
+# Newsletter AI - Production Dependencies
+# Optimized for cloud deployment (Render, Railway, Docker)
+# Version constraints ensure compatibility with Portia AI framework
 
-# Core Framework
-fastapi>=0.116.0
-uvicorn[standard]>=0.35.0
-streamlit>=1.48.0
+# ============================================================================
+# PORTIA AI FRAMEWORK CONSTRAINTS (CRITICAL - DO NOT MODIFY)
+# ============================================================================
+# The following versions MUST be maintained for Portia SDK compatibility:
+# - anthropic<=0.55.0 (Portia SDK requires exactly this version or lower)
+# - langchain-anthropic==0.3.3 (Fixed version dependency)
+# - langsmith>=0.3.15,<0.4 (Version range required by Portia)
+# - openai<1.99 (Upper bound for Portia compatibility)
+# DO NOT upgrade these versions without checking Portia SDK requirements!
+# ============================================================================
 
-# AI Framework (handles own dependencies)
+# Core Web Framework
+fastapi>=0.116.0,<0.117.0
+uvicorn[standard]>=0.35.0,<0.36.0
+starlette>=0.47.0,<0.48.0
+
+# Frontend Framework
+streamlit>=1.48.0,<1.49.0
+altair>=5.3.0,<5.4.0
+plotly==5.24.1
+pandas==2.2.3
+
+# AI Framework & Models (Version-locked for compatibility)
 portia-sdk-python==0.7.2
+google-generativeai>=0.8.0,<0.9.0
+openai>=1.98.0,<1.99.0
+anthropic==0.55.0
 
-# Google Gemini AI
-google-generativeai>=0.8.0
-
-# Database
-sqlalchemy>=2.0.40
-psycopg2-binary>=2.9.10
+# Database & ORM
+sqlalchemy>=2.0.40,<2.1.0
+psycopg2-binary>=2.9.10,<3.0.0
 
 # Authentication & Security
-python-jose[cryptography]>=3.5.0
-passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.5.0,<4.0.0
+passlib[bcrypt]>=1.7.4,<2.0.0
+python-multipart>=0.0.20,<1.0.0
 
-# Data & Validation
-pydantic[email]>=2.11.0
-pandas>=2.2.0
-plotly>=5.24.0
+# Data Validation
+pydantic[email]>=2.11.0,<3.0.0
+pydantic-settings>=2.10.0,<3.0.0
+email-validator>=2.2.0,<3.0.0
 
-# External Services
-resend>=2.13.0
-tavily-python>=0.7.11
-upstash-redis>=1.4.0
-upstash-vector>=0.8.0
-redis>=6.4.0
+# External API Services
+resend>=2.13.0,<3.0.0
+tavily-python>=0.7.11,<1.0.0
 
-# Utilities
-python-dotenv>=1.1.0
-httpx>=0.28.0
-requests>=2.32.0
-schedule>=1.2.0
+# Cloud Storage & Cache
+upstash-redis>=1.4.0,<2.0.0
+upstash-vector>=0.8.0,<1.0.0
+redis>=6.4.0,<7.0.0
+
+# HTTP & Networking
+httpx>=0.28.0,<0.29.0
+requests>=2.32.0,<3.0.0
+aiohttp>=3.12.0,<4.0.0
+
+# Utilities & Environment
+python-dotenv>=1.1.0,<2.0.0
+schedule>=1.2.0,<2.0.0
+python-dateutil>=2.9.0,<3.0.0
+rich>=14.1.0,<15.0.0
+typer>=0.16.0,<1.0.0
+loguru>=0.7.0,<1.0.0
+
+# Template & Rendering
+jinja2>=3.1.6,<4.0.0
+markupsafe>=3.0.2,<4.0.0
+
+# System Dependencies
+setuptools>=72.0.0
+packaging>=25.0
+certifi>=2025.8.0
+watchdog==4.0.1
+
+# Development Tools (optional)
+pytest>=8.0.0
+pytest-asyncio>=0.21.0
+black>=25.0.0
+flake8>=7.0.0
