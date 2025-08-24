@@ -12,6 +12,13 @@
 
 This Newsletter AI system showcases the power of **Portia AI's agent framework** by creating a fully autonomous newsletter generation pipeline. Built for the Portia AI Hackathon, this project demonstrates how multiple AI agents can work together to research, curate, write, and deliver personalized newsletters with minimal human intervention.
 
+<img width="970" height="541" alt="Screenshot 2025-08-24 at 6 09 05 PM" src="https://github.com/user-attachments/assets/f1085db7-8fac-43f9-9615-e26d15308f32" />
+<img width="1255" height="718" alt="Screenshot 2025-08-24 at 6 08 48 PM" src="https://github.com/user-achments/assets/32c1a285-b9d1-4f54-91e0-c19b2c6ad75a" />
+<img width="1255" height="718" alt="Screenshot 2025-08-24 at 6 08 40 PM" src="https://github.com/user-attachments/assets/3313d7e7-fe07-4473-ace4-c3cb24be61d5" />
+<img width="980" height="524" alt="Screenshot 2025-08-24 at 6 07 28 PM" src="https://github.com/user-attachments/assets/dfd25645-982f-4b46-880c-59224b51e337" />
+<img width="595" height="521" alt="Screenshot 2025-08-24 at 6 07 10 PM" src="https://github.com/user-attachments/assets/f74ce450-f63b-4ee1-bd12-81c47224ed71" />
+
+
 ### 🎯 Why Portia AI?
 
 **Portia AI** enables us to create sophisticated multi-agent workflows that handle complex tasks like newsletter generation. Our system uses Portia's framework to orchestrate:
