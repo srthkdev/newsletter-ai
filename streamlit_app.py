@@ -18,7 +18,7 @@ st.set_page_config(
 
 # API Configuration
 import os
-API_BASE_URL = os.getenv("API_BASE_URL", "https://newsletter-ai-1.onrender.com/api/v1")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://newsletter-ai-1ndi.onrender.com/api/v1")
 
 # Custom CSS for modern, responsive styling
 st.markdown(

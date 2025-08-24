@@ -48,7 +48,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.0
       - key: API_BASE_URL
-        value: https://newsletter-ai-1.onrender.com/api/v1
+        value: https://newsletter-ai-1ndi.onrender.com/api/v1
 
 # Database
 databases:

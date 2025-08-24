@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: Optional[str] = None
 
     # CORS - using string to avoid JSON parsing issues
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8501"
+    BACKEND_CORS_ORIGINS: str = "https://newsletter-ai-1.onrender.com,http://localhost:3000,http://localhost:8501"
 
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
