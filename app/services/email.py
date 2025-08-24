@@ -29,8 +29,8 @@ class EmailService:
 
     def __init__(self):
         self.api_key = settings.RESEND_API_KEY
-        # Use Resend sandbox domain for development
-        self.from_email = "Newsletter AI <onboarding@resend.dev>"
+        # Use custom domain if configured, otherwise use Resend sandbox domain
+        self.from_email = getattr(settings, 'RESEND_FROM_EMAIL', None) or "Newsletter AI <onboarding@resend.dev>"
         self.max_retries = 3
         self.retry_delays = [1, 5, 15]  # seconds
 

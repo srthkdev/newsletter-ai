@@ -15,6 +15,26 @@ services:
           property: connectionString
       - key: BACKEND_CORS_ORIGINS
         value: https://newsletter-ai-1.onrender.com,http://localhost:3000,http://localhost:8501
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: UPSTASH_VECTOR_URL
+        sync: false
+      - key: UPSTASH_VECTOR_TOKEN
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: PORTIA_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
     healthCheckPath: /health
     
   # Streamlit Frontend Service  
@@ -28,7 +48,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.0
       - key: API_BASE_URL
-        value: https://newsletter-ai-1ndi.onrender.com/api/v1
+        value: https://newsletter-ai-1.onrender.com/api/v1
 
 # Database
 databases:

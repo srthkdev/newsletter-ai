@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # Email services
     RESEND_API_KEY: Optional[str] = None
+    RESEND_FROM_EMAIL: Optional[str] = None
 
     # Tavily API
     TAVILY_API_KEY: Optional[str] = None
