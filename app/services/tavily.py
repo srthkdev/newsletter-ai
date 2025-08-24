@@ -229,40 +229,158 @@ class TavilyService:
 
         return filtered_results
 
-    def detect_duplicates(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def clean_web_content(self, content: str) -> str:
         """
-        Remove duplicate content from search results
+        Clean web content by removing navigation, ads, image references, and other artifacts
+        
+        Args:
+            content: Raw web content from Tavily
+            
+        Returns:
+            Cleaned content suitable for newsletter display
+        """
+        if not content:
+            return ""
+            
+        import re
+        
+        # Remove common web navigation and UI elements
+        patterns_to_remove = [
+            r'skip to main content',
+            r'report this ad',
+            r'exclusive news, data and analytics for financial market professionals',
+            r'learn more about refinitiv',
+            r'stay informed[-\s]*',
+            r'© \d{4} reuters',
+            r'all rights reserved',
+            r'download the app \([^)]+\)',
+            r'newsletters\s*subscribe',
+            r'information you can trust[-\s]*',
+            r'opens new tab',
+            r'image \d+:?[^.]*',
+            r'image \d+',
+            r'\[\.\.\.\.?\]',
+            r'advertisement',
+            r'cookie policy',
+            r'privacy policy',
+            r'terms of service',
+            r'follow us on',
+            r'share this article',
+            r'related articles?',
+            r'trending now',
+            r'most popular',
+            r'subscribe to',
+            r'sign up for',
+            r'\bads?\b',
+            r'sponsored content',
+            r'partner content'
+        ]
+        
+        cleaned = content
+        
+        # Remove patterns (case insensitive)
+        for pattern in patterns_to_remove:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+        
+        # Remove HTML tags and entities
+        cleaned = re.sub(r'<[^>]+>', '', cleaned)
+        cleaned = re.sub(r'&[a-zA-Z]+;', '', cleaned)
+        
+        # Remove multiple consecutive punctuation
+        cleaned = re.sub(r'[.]{3,}', '...', cleaned)
+        cleaned = re.sub(r'[-]{3,}', '---', cleaned)
+        
+        # Remove URLs
+        cleaned = re.sub(r'https?://[^\s]+', '', cleaned)
+        
+        # Remove email addresses
+        cleaned = re.sub(r'\S+@\S+\.\S+', '', cleaned)
+        
+        # Remove extra whitespace and clean up
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        cleaned = re.sub(r'\n\s*\n', '\n\n', cleaned)
+        
+        # Remove lines that are mostly non-alphabetic
+        lines = cleaned.split('\n')
+        filtered_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if len(line) < 10:  # Skip very short lines
+                continue
+                
+            # Check if line has reasonable amount of alphabetic characters
+            alpha_count = sum(1 for c in line if c.isalpha())
+            if alpha_count / len(line) >= 0.5:  # At least 50% letters
+                filtered_lines.append(line)
+        
+        cleaned = '\n'.join(filtered_lines)
+        
+        # Final cleanup
+        cleaned = cleaned.strip()
+        
+        return cleaned
+        
+    def enhance_article_with_ai_summary(self, article: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance article with AI-generated summary, removing raw web content
+        
+        Args:
+            article: Article dictionary from Tavily
+            
+        Returns:
+            Enhanced article with cleaned content and AI summary
+        """
+        enhanced_article = article.copy()
+        
+        # Clean the content
+        raw_content = article.get('content', '')
+        cleaned_content = self.clean_web_content(raw_content)
+        
+        enhanced_article['content'] = cleaned_content
+        enhanced_article['original_content_length'] = len(raw_content)
+        enhanced_article['cleaned_content_length'] = len(cleaned_content)
+        
+        # Generate AI summary (this would be called by writing agent)
+        enhanced_article['needs_ai_summary'] = True
+        enhanced_article['summary_prompt'] = f"Summarize this article about {article.get('title', 'news')}: {cleaned_content[:500]}..."
+        
+        return enhanced_article
 
+    def detect_duplicates(
+        self, results: List[Dict[str, Any]], title_threshold: float = 0.8
+    ) -> List[Dict[str, Any]]:
+        """
+        Detect and remove duplicate articles based on title similarity
+        
         Args:
             results: List of search results
-
+            title_threshold: Similarity threshold for title comparison
+            
         Returns:
-            List with duplicates removed
+            List of unique articles with duplicates removed
         """
-        seen_titles = set()
-        seen_urls = set()
+        if not results:
+            return []
+            
         unique_results = []
-
+        seen_titles = []
+        
         for result in results:
-            title = result.get("title", "").lower().strip()
-            url = result.get("url", "")
-
-            # Skip if we've seen this title or URL before
-            if title in seen_titles or url in seen_urls:
+            title = result.get("title", "")
+            if not title:
                 continue
-
-            # Check for similar titles (basic similarity)
-            is_similar = False
+                
+            is_duplicate = False
             for seen_title in seen_titles:
-                if self._titles_similar(title, seen_title):
-                    is_similar = True
+                if self._titles_similar(title, seen_title, title_threshold):
+                    is_duplicate = True
                     break
-
-            if not is_similar:
-                seen_titles.add(title)
-                seen_urls.add(url)
+                    
+            if not is_duplicate:
                 unique_results.append(result)
-
+                seen_titles.append(title)
+                
         return unique_results
 
     def _titles_similar(self, title1: str, title2: str, threshold: float = 0.8) -> bool:

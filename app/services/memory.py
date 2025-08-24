@@ -171,6 +171,71 @@ class MemoryService:
             print(f"❌ Failed to get user context: {e}")
             return None
 
+    async def store_user_data(
+        self, user_id: str, data_key: str, data: Dict[str, Any], ttl_hours: int = 168
+    ) -> bool:
+        """
+        Store arbitrary user data with TTL (generic storage method)
+
+        Args:
+            user_id: User identifier
+            data_key: Key for the data (can include prefixes like 'mindmap:')
+            data: Data to store
+            ttl_hours: Time to live in hours (default: 1 week)
+
+        Returns:
+            True if stored successfully
+        """
+        client = self._get_client()
+        if not client:
+            return False
+
+        try:
+            # Use the provided key directly (allows for custom prefixes)
+            key = f"user_data:{user_id}:{data_key}"
+            data_with_metadata = {
+                "data": data,
+                "stored_at": datetime.utcnow().isoformat(),
+                "user_id": user_id,
+                "data_key": data_key,
+            }
+
+            ttl_seconds = ttl_hours * 3600
+            result = client.setex(key, ttl_seconds, json.dumps(data_with_metadata))
+            return result is not None
+
+        except Exception as e:
+            print(f"❌ Failed to store user data: {e}")
+            return False
+
+    async def get_user_data(self, user_id: str, data_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve arbitrary user data
+
+        Args:
+            user_id: User identifier
+            data_key: Key for the data
+
+        Returns:
+            Data or None
+        """
+        client = self._get_client()
+        if not client:
+            return None
+
+        try:
+            key = f"user_data:{user_id}:{data_key}"
+            result = client.get(key)
+
+            if result:
+                data_record = json.loads(result)
+                return data_record.get("data")
+            return None
+
+        except Exception as e:
+            print(f"❌ Failed to get user data: {e}")
+            return None
+
     async def store_newsletter_history(
         self, user_id: str, newsletter_data: Dict[str, Any]
     ) -> bool:

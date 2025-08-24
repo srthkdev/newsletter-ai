@@ -221,20 +221,21 @@ class NewsletterAgentOrchestrator:
                     else f"📧 {newsletter.get('title', 'Your Newsletter')}"
                 )
 
-                email_sent = await self.email_service.send_newsletter_email(
+                email_success, delivery_info = await self.email_service.send_newsletter_email(
                     email=user_email,
                     newsletter_data=newsletter,
                     subject_line=subject_line,
                 )
 
-                workflow_results["email_sent"] = email_sent
+                workflow_results["email_sent"] = email_success
                 workflow_results["steps"]["email"] = {
-                    "success": email_sent,
+                    "success": email_success,
                     "recipient": user_email,
                     "subject": subject_line,
+                    "delivery_info": delivery_info,
                 }
 
-                if email_sent:
+                if email_success:
                     # Update engagement metrics
                     await self.memory_service.update_engagement_metrics(
                         user_id=user_id,

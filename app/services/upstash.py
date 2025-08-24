@@ -120,7 +120,8 @@ class VectorService:
                 
                 cleaned_vectors.append(cleaned)
             
-            await self.vector.upsert(cleaned_vectors)
+            # Remove await since upstash vector client is synchronous
+            self.vector.upsert(cleaned_vectors)
             return True
         except Exception as e:
             print(f"Vector upsert error: {e}")
@@ -138,23 +139,48 @@ class VectorService:
                 print(f"Vector query error: Invalid vector format: {type(vector)}")
                 return []
             
-            # Clean filter to avoid serialization issues
-            clean_filter = {}
-            if filter:
-                for key, value in filter.items():
-                    if isinstance(value, (str, int, float, bool)):
-                        clean_filter[key] = value
-                    else:
-                        # Convert complex objects to strings
-                        clean_filter[key] = str(value)
+            # Completely avoid filter for now to prevent serialization issues
+            # The Java deserialization error suggests the Upstash Vector service
+            # is having trouble with the filter object structure
+            try:
+                # Remove await since upstash vector client is synchronous
+                result = self.vector.query(
+                    vector=vector, 
+                    top_k=top_k * 2,  # Get more results to filter client-side
+                    include_metadata=True
+                    # Removed filter parameter to avoid serialization issues
+                )
                 
-            result = self.vector.query(
-                vector=vector, 
-                top_k=top_k, 
-                include_metadata=True, 
-                filter=clean_filter
-            )
-            return result.matches if result else []
+                matches = result.matches if result and hasattr(result, 'matches') else []
+                
+                # Apply client-side filtering if filter was provided
+                if filter and matches:
+                    filtered_matches = []
+                    for match in matches:
+                        metadata = getattr(match, 'metadata', {}) or {}
+                        
+                        # Check if match satisfies filter criteria
+                        match_satisfies_filter = True
+                        for key, value in filter.items():
+                            if key not in metadata or metadata[key] != value:
+                                match_satisfies_filter = False
+                                break
+                        
+                        if match_satisfies_filter:
+                            filtered_matches.append(match)
+                            
+                        # Stop if we have enough results
+                        if len(filtered_matches) >= top_k:
+                            break
+                    
+                    return filtered_matches[:top_k]
+                
+                return matches[:top_k]
+                
+            except Exception as query_error:
+                print(f"Vector query failed: {query_error}")
+                return []
+                
         except Exception as e:
             print(f"Vector query error: {e}")
             return []
@@ -164,7 +190,8 @@ class VectorService:
         if not self.vector:
             return False
         try:
-            await self.vector.delete(ids)
+            # Remove await since upstash vector client is synchronous
+            self.vector.delete(ids)
             return True
         except Exception as e:
             print(f"Vector delete error: {e}")

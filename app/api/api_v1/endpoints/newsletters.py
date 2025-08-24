@@ -17,57 +17,69 @@ router = APIRouter()
 
 def create_formatted_content(newsletter_obj: Dict[str, Any]) -> str:
     """Create formatted newsletter content from newsletter object for beautiful display"""
+    if newsletter_obj is None:
+        return "Content not available."
+    
+    if not isinstance(newsletter_obj, dict):
+        return f"Invalid content format: {type(newsletter_obj)}"
+    
     content_parts = []
     
     # Add introduction with proper formatting
-    if newsletter_obj.get("introduction"):
-        content_parts.append(f"## Introduction\n\n{newsletter_obj['introduction']}\n\n")
+    introduction = newsletter_obj.get("introduction")
+    if introduction:
+        content_parts.append(f"## Introduction\n\n{introduction}\n\n")
     
     # Add sections with enhanced formatting
     sections = newsletter_obj.get("sections", [])
-    for section_idx, section in enumerate(sections):
-        if isinstance(section, dict):
-            # Add section title if available
-            section_title = section.get("title", f"Section {section_idx + 1}")
-            content_parts.append(f"## {section_title}\n\n")
-            
-            # Add articles in this section with better formatting
-            articles = section.get("articles", [])
-            for i, article in enumerate(articles):
-                if isinstance(article, dict):
-                    # Handle structured article objects
-                    title = article.get("title", f"Article {i+1}")
-                    content = article.get("content", "")
-                    url = article.get("url", "")
-                    summary = article.get("summary", "")
-                    
-                    content_parts.append(f"### {title}\n\n")
-                    
-                    # Add summary if available
-                    if summary:
-                        content_parts.append(f"**Summary:** {summary}\n\n")
-                    
-                    if content:
-                        # Keep full content for detailed view
-                        content_parts.append(f"{content}\n\n")
-                    
-                    if url:
-                        content_parts.append(f"[Read full article →]({url})\n\n")
-                        
-                elif isinstance(article, str):
-                    # Handle string articles from writing agent (already formatted)
-                    content_parts.append(f"{article}\n\n")
-                else:
-                    # Fallback for any other type
-                    content_parts.append(f"{str(article)}\n\n")
-            
-            content_parts.append("---\n\n")  # Section separator
+    if sections and isinstance(sections, list):
+        for section_idx, section in enumerate(sections):
+            if isinstance(section, dict):
+                # Add section title if available
+                section_title = section.get("title", f"Section {section_idx + 1}")
+                content_parts.append(f"## {section_title}\n\n")
+                
+                # Add articles in this section with better formatting
+                articles = section.get("articles", [])
+                if articles and isinstance(articles, list):
+                    for i, article in enumerate(articles):
+                        if isinstance(article, dict):
+                            # Handle structured article objects
+                            title = article.get("title", f"Article {i+1}")
+                            content = article.get("content", "")
+                            url = article.get("url", "")
+                            summary = article.get("summary", "")
+                            
+                            content_parts.append(f"### {title}\n\n")
+                            
+                            # Add summary if available
+                            if summary:
+                                content_parts.append(f"**Summary:** {summary}\n\n")
+                            
+                            if content:
+                                # Keep full content for detailed view
+                                content_parts.append(f"{content}\n\n")
+                            
+                            if url:
+                                content_parts.append(f"[Read full article →]({url})\n\n")
+                                
+                        elif isinstance(article, str):
+                            # Handle string articles from writing agent (already formatted)
+                            content_parts.append(f"{article}\n\n")
+                        else:
+                            # Fallback for any other type
+                            content_parts.append(f"{str(article)}\n\n")
+                
+                content_parts.append("---\n\n")  # Section separator
     
     # Add conclusion with proper formatting
-    if newsletter_obj.get("conclusion"):
-        content_parts.append(f"## Conclusion\n\n{newsletter_obj['conclusion']}\n\n")
+    conclusion = newsletter_obj.get("conclusion")
+    if conclusion:
+        content_parts.append(f"## Conclusion\n\n{conclusion}\n\n")
     
-    return "".join(content_parts)
+    # Return formatted content or fallback message
+    formatted_content = "".join(content_parts)
+    return formatted_content if formatted_content.strip() else "Newsletter content is being generated..."
 
 
 class CustomPromptRequest(BaseModel):
@@ -172,44 +184,73 @@ async def generate_newsletter(
             user_email=current_user.email if send_immediately else None
         )
         
-        logger.info(f"Newsletter generation result: {result.keys()}")
-        if 'newsletter' in result:
-            logger.info(f"Newsletter structure: {result['newsletter'].keys()}")
-        
-        if result.get("success"):
-            # Extract newsletter data from orchestrator result
-            newsletter_obj = result.get("newsletter", {})
-            
-            # Create newsletter record in database
-            newsletter_data = {
-                "title": newsletter_obj.get("title", "AI-Generated Newsletter"),
-                "main_content": create_formatted_content(newsletter_obj),
-                "html_content": newsletter_obj.get("html_content", ""),
-                "summary": newsletter_obj.get("introduction", "")[:200] + "..." if newsletter_obj.get("introduction") else "AI-generated newsletter with personalized content",
-                "mindmap_markdown": newsletter_obj.get("mindmap_markdown", ""),  # Add mindmap data
-                "mindmap_agent_data": result.get("steps", {}).get("mindmap", {}),  # Store mindmap generation metadata
-                "status": NewsletterStatus.SENT if send_immediately else NewsletterStatus.READY,
-                "content_sections": newsletter_obj.get("sections", []),
-                "sources_used": result.get("articles", [])[:5],  # Store some articles as sources
-                "topics_covered": newsletter_obj.get("metadata", {}).get("user_preferences", {}).get("topics", []),
-                "word_count": result.get("word_count", 0),
-                "estimated_read_time": result.get("estimated_read_time", 5)
-            }
-            
-            if send_immediately:
-                newsletter_data["sent_at"] = datetime.now(timezone.utc)
-            
-            newsletter = db_utils.create_newsletter(user_id, newsletter_data)
-            
-            return {
-                "success": True,
-                "message": "Newsletter generated successfully",
-                "newsletter_id": str(newsletter.id),
-                "title": newsletter.title,
-                "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status)
-            }
+        # Safe logging to avoid NoneType errors
+        if result is not None:
+            logger.info(f"Newsletter generation result: {result.keys()}")
+            if 'newsletter' in result and result['newsletter'] is not None:
+                newsletter_obj = result.get('newsletter')
+                if newsletter_obj is not None and hasattr(newsletter_obj, 'keys'):
+                    logger.info(f"Newsletter structure: {newsletter_obj.keys()}")
+                elif newsletter_obj is not None:
+                    logger.info(f"Newsletter object type: {type(newsletter_obj)}")
+                else:
+                    logger.warning("Newsletter object is None in result")
         else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Newsletter generation failed"))
+            logger.error("Newsletter generation returned None result")
+            raise HTTPException(status_code=500, detail="Newsletter generation failed - no result returned")
+        
+        # Ensure we have a valid result dictionary
+        if not isinstance(result, dict):
+            logger.error(f"Newsletter generation returned invalid type: {type(result)}")
+            raise HTTPException(status_code=500, detail="Newsletter generation failed - invalid result type")
+        
+        # Check if generation was successful
+        if not result.get("success", False):
+            error_msg = result.get("error", "Newsletter generation failed")
+            logger.error(f"Newsletter generation failed: {error_msg}")
+            raise HTTPException(status_code=500, detail=error_msg)
+        
+        # Extract newsletter data from orchestrator result
+        newsletter_obj = result.get("newsletter")
+        if newsletter_obj is None:
+            logger.error("Newsletter object is None despite successful generation")
+            raise HTTPException(status_code=500, detail="Newsletter generation failed - no newsletter content returned")
+        
+        # Ensure newsletter_obj is a dictionary
+        if not isinstance(newsletter_obj, dict):
+            logger.error(f"Newsletter object is not a dictionary: {type(newsletter_obj)}")
+            raise HTTPException(status_code=500, detail="Newsletter generation failed - invalid newsletter format")
+        
+        # Create newsletter record in database
+        newsletter_data = {
+            "title": newsletter_obj.get("title", "AI-Generated Newsletter"),
+            "main_content": create_formatted_content(newsletter_obj),
+            "html_content": newsletter_obj.get("html_content", ""),
+            "summary": newsletter_obj.get("summary", newsletter_obj.get("introduction", "")[:200] + "..." if newsletter_obj.get("introduction") else "AI-generated newsletter with personalized content"),
+            "mindmap_markdown": newsletter_obj.get("mindmap_markdown", ""),  # Add mindmap data
+            "mindmap_svg": result.get("steps", {}).get("mindmap", {}).get("mindmap_svg", ""),  # Add SVG data
+            "keywords_data": result.get("steps", {}).get("mindmap", {}).get("keywords_data", {}),  # Add keywords
+            "mindmap_agent_data": result.get("steps", {}).get("mindmap", {}),  # Store mindmap generation metadata
+            "status": NewsletterStatus.SENT if send_immediately else NewsletterStatus.READY,
+            "content_sections": newsletter_obj.get("sections", []),
+            "sources_used": result.get("articles", [])[:5],  # Store some articles as sources
+            "topics_covered": newsletter_obj.get("metadata", {}).get("user_preferences", {}).get("topics", []),
+            "word_count": result.get("word_count", 0),
+            "estimated_read_time": result.get("estimated_read_time", 5)
+        }
+        
+        if send_immediately:
+            newsletter_data["sent_at"] = datetime.now(timezone.utc)
+        
+        newsletter = db_utils.create_newsletter(user_id, newsletter_data)
+        
+        return {
+            "success": True,
+            "message": "Newsletter generated successfully",
+            "newsletter_id": str(newsletter.id),
+            "title": newsletter.title,
+            "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status)
+        }
         
     except HTTPException:
         raise
@@ -351,6 +392,8 @@ async def get_newsletter(newsletter_id: str, db: Session = Depends(get_db)):
             "plain_text_content": newsletter.plain_text_content,
             "summary": newsletter.summary,
             "mindmap_markdown": newsletter.mindmap_markdown,  # Add mindmap data
+            "mindmap_svg": getattr(newsletter, 'mindmap_svg', ''),  # Add SVG data
+            "keywords_data": getattr(newsletter, 'keywords_data', {}),  # Add keywords data
             "mindmap_agent_data": getattr(newsletter, 'mindmap_agent_data', {}),
             "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status),
             "newsletter_type": newsletter.newsletter_type.value if hasattr(newsletter.newsletter_type, 'value') else str(newsletter.newsletter_type),

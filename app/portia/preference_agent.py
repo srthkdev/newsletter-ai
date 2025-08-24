@@ -198,7 +198,64 @@ class NewsletterPreferenceAgent(BaseNewsletterAgent):
             if not user_id:
                 return {"success": False, "error": "User ID is required"}
 
+            # Try memory service first
             preferences = await self.memory.get_user_preferences(user_id)
+            
+            # If memory service fails or returns empty, try database directly
+            if not preferences:
+                try:
+                    from app.core.database import get_db
+                    from app.models.preferences import UserPreferences
+                    from sqlalchemy.orm import Session
+                    import uuid
+                    
+                    # Get database session
+                    db_gen = get_db()
+                    db: Session = next(db_gen)
+                    
+                    try:
+                        # Convert user_id to UUID if needed
+                        if isinstance(user_id, str):
+                            if user_id == "demo_user":
+                                # For demo user, create a consistent UUID
+                                user_uuid = uuid.UUID('12345678-1234-5678-1234-567812345678')
+                            else:
+                                try:
+                                    user_uuid = uuid.UUID(user_id)
+                                except ValueError:
+                                    # If user_id is not a valid UUID, create one from the string
+                                    import hashlib
+                                    user_hash = hashlib.sha256(user_id.encode()).hexdigest()[:32]
+                                    user_uuid = uuid.UUID(user_hash[:8] + '-' + user_hash[8:12] + '-' + user_hash[12:16] + '-' + user_hash[16:20] + '-' + user_hash[20:32])
+                        else:
+                            user_uuid = user_id
+                        
+                        # Query database directly
+                        db_preferences = db.query(UserPreferences).filter(
+                            UserPreferences.user_id == user_uuid
+                        ).first()
+                        
+                        if db_preferences:
+                            preferences = {
+                                "topics": db_preferences.topics or ["technology", "business"],
+                                "tone": db_preferences.tone or "professional",
+                                "frequency": db_preferences.frequency or "weekly",
+                                "max_articles": db_preferences.max_articles_per_newsletter or 10,
+                                "include_trending": getattr(db_preferences, 'include_trending', True),
+                                "custom_instructions": db_preferences.custom_instructions or "",
+                                "preferred_length": db_preferences.preferred_length or "medium",
+                                "timezone": db_preferences.timezone or "UTC",
+                                "send_time": db_preferences.preferred_send_time.strftime("%H:%M") if db_preferences.preferred_send_time else "09:00",
+                                "updated_at": db_preferences.updated_at.isoformat() if db_preferences.updated_at else None,
+                                "loaded_from": "database_direct"
+                            }
+                            print(f"\u2139\ufe0f Loaded preferences directly from database for user {user_id}: {len(preferences.get('topics', []))} topics")
+                        
+                    finally:
+                        db.close()
+                        
+                except Exception as db_error:
+                    print(f"Database fallback failed: {db_error}")
 
             if preferences:
                 return {
@@ -209,6 +266,7 @@ class NewsletterPreferenceAgent(BaseNewsletterAgent):
             else:
                 # Return default preferences
                 default_preferences = self._get_default_preferences()
+                print(f"\u26a0\ufe0f Using default preferences for user {user_id}")
                 return {
                     "success": True,
                     "preferences": default_preferences,
@@ -217,6 +275,7 @@ class NewsletterPreferenceAgent(BaseNewsletterAgent):
                 }
 
         except Exception as e:
+            print(f"Error getting preferences: {e}")
             return await self.handle_error(e, context)
 
     async def _analyze_preferences(self, context: Dict[str, Any]) -> Dict[str, Any]:

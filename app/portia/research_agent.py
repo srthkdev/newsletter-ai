@@ -158,7 +158,9 @@ class NewsletterResearchAgent(BaseNewsletterAgent):
                 if topic_data["success"]:
                     for article in topic_data["results"]:
                         article["topic"] = topic
-                        all_articles.append(article)
+                        # Clean web content artifacts
+                        cleaned_article = self.tavily.enhance_article_with_ai_summary(article)
+                        all_articles.append(cleaned_article)
 
             # Filter for quality and remove duplicates (Requirements 3.2, 3.4)
             filtered_articles = self.tavily.filter_content_by_quality(all_articles)
@@ -210,7 +212,14 @@ class NewsletterResearchAgent(BaseNewsletterAgent):
 
             # Filter and process results (Requirements 3.2, 3.4)
             articles = search_results.get("results", [])
-            filtered_articles = self.tavily.filter_content_by_quality(articles)
+            
+            # Clean web content artifacts from articles
+            cleaned_articles = []
+            for article in articles:
+                cleaned_article = self.tavily.enhance_article_with_ai_summary(article)
+                cleaned_articles.append(cleaned_article)
+            
+            filtered_articles = self.tavily.filter_content_by_quality(cleaned_articles)
             unique_articles = self.tavily.detect_duplicates(filtered_articles)
 
             # Prioritize recent content (Requirement 3.3)

@@ -199,8 +199,54 @@ class EmailTemplateManager:
                 padding: 15px;
                 border-radius: 8px;
                 margin: 10px 0;
-                border-left: 3px solid #22c55e;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }}
+            .mindmap-section {{
+                background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+                padding: 25px;
+                border-radius: 12px;
+                margin: 30px 0;
+                border-left: 5px solid #22c55e;
+                text-align: center;
+            }}
+            .mindmap-section h3 {{
+                color: #166534;
+                font-size: 20px;
+                margin-bottom: 20px;
+                font-weight: 600;
+            }}
+            .mindmap-container {{
+                background: white;
+                border-radius: 10px;
+                padding: 20px;
+                margin: 15px 0;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 200px;
+            }}
+            .mindmap-svg {{
+                max-width: 100%;
+                height: auto;
+                border-radius: 8px;
+            }}
+            .mindmap-keywords {{
+                background: #f8fafc;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 15px 0;
+                text-align: left;
+            }}
+            .keyword-tag {{
+                display: inline-block;
+                background: #22c55e;
+                color: white;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 0.85rem;
+                margin: 2px;
+                font-weight: 500;
             }}
             .source-title {{
                 font-weight: 600;
@@ -289,6 +335,8 @@ class EmailTemplateManager:
                     <div class="divider"></div>
                     
                     {"".join([self._format_digest_section(section) for section in sections])}
+                    
+                    {self._format_mindmap_section(newsletter_data)}
                     
                     {f'<div class="conclusion"><h2>Conclusion</h2><p>{conclusion}</p></div>' if conclusion else ''}
                     
@@ -554,7 +602,7 @@ class EmailTemplateManager:
 
     # Section formatting methods
     def _format_digest_section(self, section: Dict[str, Any]) -> str:
-        """Format section for daily digest with enhanced display"""
+        """Format section for daily digest with enhanced display and markdown cleaning"""
         title = section.get("title", "")
         articles = section.get("articles", [])
         
@@ -572,11 +620,13 @@ class EmailTemplateManager:
                 
                 # Article summary if available
                 if article.get("summary"):
-                    html += f'<div class="article-summary"><strong>Summary:</strong> {article["summary"]}</div>'
+                    clean_summary = self._clean_markdown_for_email(article["summary"])
+                    html += f'<div class="article-summary"><strong>Summary:</strong> {clean_summary}</div>'
                 
-                # Full article content (no truncation for email)
+                # Full article content (cleaned of markdown)
                 if article.get("content"):
-                    html += f'<p>{article["content"]}</p>'
+                    clean_content = self._clean_markdown_for_email(article["content"])
+                    html += f'<p>{clean_content}</p>'
                 
                 # Read more link
                 if article.get("url"):
@@ -585,18 +635,57 @@ class EmailTemplateManager:
                 html += '</div>'
                 
             elif isinstance(article, str):
-                # Handle string articles from writing agent (already formatted)
-                html += f'<div class="article"><p>{article}</p></div>'
+                # Handle string articles from writing agent (clean markdown)
+                clean_article = self._clean_markdown_for_email(article)
+                html += f'<div class="article"><p>{clean_article}</p></div>'
         
         html += '</div>'
         return html
+    
+    def _clean_markdown_for_email(self, content: str) -> str:
+        """Clean markdown content for HTML email display"""
+        if not content:
+            return ""
+        
+        import re
+        
+        # Remove markdown syntax and convert to HTML-safe content
+        cleaned = content
+        
+        # Convert markdown links [text](url) to HTML links
+        cleaned = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank" style="color: #667eea; text-decoration: none;">\1</a>', cleaned)
+        
+        # Convert **bold** to <strong>
+        cleaned = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', cleaned)
+        
+        # Convert *italic* to <em>
+        cleaned = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'<em>\1</em>', cleaned)
+        
+        # Handle headers by converting to appropriate HTML tags
+        cleaned = re.sub(r'^### (.+)$', r'<h4 style="color: #374151; margin: 15px 0 8px 0;">\1</h4>', cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r'^## (.+)$', r'<h3 style="color: #1f2937; margin: 20px 0 10px 0;">\1</h3>', cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r'^# (.+)$', r'<h2 style="color: #111827; margin: 25px 0 12px 0;">\1</h2>', cleaned, flags=re.MULTILINE)
+        
+        # Convert line breaks to HTML
+        cleaned = re.sub(r'\n\s*\n', '<br><br>', cleaned)  # Double line breaks
+        cleaned = cleaned.replace('\n', '<br>')  # Single line breaks
+        
+        # Remove any remaining markdown artifacts
+        cleaned = re.sub(r'\*{1,2}', '', cleaned)  # Remove stray asterisks
+        cleaned = re.sub(r'#{1,6}\s*', '', cleaned)  # Remove stray headers
+        cleaned = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', cleaned)  # Remove broken links
+        
+        # Clean up extra whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        return cleaned
 
     def _format_roundup_section(self, section: Dict[str, Any]) -> str:
         """Format section for weekly roundup"""
         return self._format_digest_section(section)  # Same format for now
 
     def _format_breaking_section(self, section: Dict[str, Any]) -> str:
-        """Format section for breaking news"""
+        """Format section for breaking news with markdown cleaning"""
         title = section.get("title", "")
         articles = section.get("articles", [])
         
@@ -606,16 +695,18 @@ class EmailTemplateManager:
         
         for article in articles:
             if isinstance(article, dict):
+                clean_content = self._clean_markdown_for_email(article.get("content", ""))
                 html += f'''
                 <div class="urgent-content">
                     <h3 style="color: #dc2626; margin-bottom: 10px;">🚨 {article.get("title", "")}</h3>
-                    <p style="color: #1a202c; font-weight: 500;">{article.get("content", "")}</p>
+                    <p style="color: #1a202c; font-weight: 500;">{clean_content}</p>
                     {f'<a href="{article.get("url", "")}" style="color: #dc2626; font-weight: bold;">Full Story →</a>' if article.get("url") else ""}
                 </div>
                 '''
             elif isinstance(article, str):
-                # Handle string articles from writing agent
-                html += f'<div class="urgent-content" style="color: #1a202c; font-weight: 500; margin: 15px 0;">{article}</div>'
+                # Handle string articles from writing agent (clean markdown)
+                clean_article = self._clean_markdown_for_email(article)
+                html += f'<div class="urgent-content" style="color: #1a202c; font-weight: 500; margin: 15px 0;">{clean_article}</div>'
         
         html += '</div>'
         return html
@@ -625,7 +716,7 @@ class EmailTemplateManager:
         return self._format_digest_section(section)  # Same format for now
 
     def _format_research_section(self, section: Dict[str, Any]) -> str:
-        """Format section for research summary"""
+        """Format section for research summary with markdown cleaning"""
         title = section.get("title", "")
         articles = section.get("articles", [])
         
@@ -635,10 +726,11 @@ class EmailTemplateManager:
         
         for article in articles:
             if isinstance(article, dict):
+                clean_content = self._clean_markdown_for_email(article.get("content", ""))
                 html += f'''
                 <div class="article">
                     <h3 style="color: #065f46; margin-bottom: 10px;">📊 {article.get("title", "")}</h3>
-                    <p style="color: #374151;">{article.get("content", "")}</p>
+                    <p style="color: #374151;">{clean_content}</p>
                     <div class="methodology">
                         <strong>Source:</strong> {article.get("source", "Multiple sources")}
                     </div>
@@ -646,8 +738,9 @@ class EmailTemplateManager:
                 </div>
                 '''
             elif isinstance(article, str):
-                # Handle string articles from writing agent
-                html += f'<div class="article" style="color: #374151; margin: 15px 0;">{article}</div>'
+                # Handle string articles from writing agent (clean markdown)
+                clean_article = self._clean_markdown_for_email(article)
+                html += f'<div class="article" style="color: #374151; margin: 15px 0;">{clean_article}</div>'
         
         html += '</div>'
         return html
@@ -678,6 +771,42 @@ class EmailTemplateManager:
         
         html += '</div>'
         return html
+    
+    def _format_mindmap_section(self, newsletter_data: Dict[str, Any]) -> str:
+        """Format mindmap section for email with SVG and keywords"""
+        mindmap_svg = newsletter_data.get("mindmap_svg", "")
+        keywords_data = newsletter_data.get("keywords_data", {})
+        
+        if not mindmap_svg and not keywords_data:
+            return ""
+        
+        mindmap_html = '<div class="mindmap-section"><h3>🗺️ Newsletter Keywords Map</h3>'
+        
+        # Add description
+        mindmap_html += '<p style="color: #166534; margin-bottom: 20px;">Visual overview of key topics and themes covered in this newsletter.</p>'
+        
+        # Include SVG if available
+        if mindmap_svg:
+            # Clean SVG for email compatibility
+            cleaned_svg = mindmap_svg.replace('xmlns="http://www.w3.org/2000/svg"', '')
+            mindmap_html += f'''
+            <div class="mindmap-container">
+                {cleaned_svg}
+            </div>
+            '''
+        
+        # Add keywords summary
+        if keywords_data and keywords_data.get("primary_keywords"):
+            mindmap_html += '<div class="mindmap-keywords">'
+            mindmap_html += '<p style="font-weight: 600; margin-bottom: 10px; color: #166534;">🔑 Key Topics:</p>'
+            
+            for keyword in keywords_data["primary_keywords"][:8]:  # Top 8 keywords
+                mindmap_html += f'<span class="keyword-tag">{keyword}</span>'
+            
+            mindmap_html += '</div>'
+        
+        mindmap_html += '</div>'
+        return mindmap_html
 
     def _get_topic_color(self, topics: List[str]) -> str:
         """Get primary color based on topics"""

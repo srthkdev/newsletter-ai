@@ -97,7 +97,7 @@ st.markdown(
     .section-title {
         font-size: 1.5rem;
         font-weight: 600;
-        color: #1a202c;
+        color: #1a202c !important;
         margin-bottom: 1rem;
     }
     .article-item {
@@ -111,8 +111,28 @@ st.markdown(
     .article-title {
         font-size: 1.2rem;
         font-weight: 600;
-        color: #1a202c;
+        color: #1a202c !important;
         margin-bottom: 0.75rem;
+    }
+    /* Ensure all headings are dark regardless of theme */
+    h1, h2, h3, h4, h5, h6 {
+        color: #1a202c !important;
+    }
+    /* Newsletter content text styling */
+    .newsletter-container h1,
+    .newsletter-container h2,
+    .newsletter-container h3,
+    .newsletter-container h4,
+    .newsletter-container h5,
+    .newsletter-container h6 {
+        color: #1a202c !important;
+    }
+    /* Topic and section headings */
+    .content-section h3,
+    .content-section h4,
+    [data-testid="stMarkdownContainer"] h3,
+    [data-testid="stMarkdownContainer"] h4 {
+        color: #1a202c !important;
     }
     .article-content {
         color: #4a5568;
@@ -196,6 +216,8 @@ st.markdown(
     .mindmap-controls {
         display: flex;
         gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
     }
     .mindmap-btn {
         background: #16a34a;
@@ -206,10 +228,60 @@ st.markdown(
         font-size: 0.9rem;
         cursor: pointer;
         transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
     }
     .mindmap-btn:hover {
         background: #15803d;
         transform: translateY(-1px);
+    }
+    .mindmap-btn:active {
+        transform: translateY(0);
+    }
+    .zoom-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        background: #f8fafc;
+        border-radius: 6px;
+        padding: 0.25rem;
+    }
+    .zoom-btn {
+        background: #64748b;
+        color: white;
+        border: none;
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .zoom-btn:hover {
+        background: #475569;
+    }
+    .zoom-level {
+        font-size: 0.8rem;
+        color: #64748b;
+        min-width: 40px;
+        text-align: center;
+    }
+    .mindmap-viewer {
+        position: relative;
+        overflow: hidden;
+        border-radius: 8px;
+        background: #f8fafc;
+        cursor: grab;
+    }
+    .mindmap-viewer:active {
+        cursor: grabbing;
+    }
+    .mindmap-content {
+        transition: transform 0.3s ease;
+        transform-origin: center center;
     }
     .mindmap-fallback {
         background: #f8fafc;
@@ -338,7 +410,7 @@ def get_newsletter_detail(newsletter_id: str) -> Optional[Dict[str, Any]]:
 
 
 def format_content_sections(content_sections: list) -> str:
-    """Format content sections for display"""
+    """Format content sections for display without raw markdown syntax"""
     if not content_sections:
         return ""
     
@@ -362,7 +434,8 @@ def format_content_sections(content_sections: list) -> str:
                     
                     if article.get("content"):
                         content = article["content"]
-                        # Format the content nicely
+                        # Clean and format the content
+                        content = clean_markdown_content(content)
                         if len(content) > 500:
                             content = content[:500] + "..."
                         formatted_html += f'<div class="article-content">{content}</div>'
@@ -373,15 +446,49 @@ def format_content_sections(content_sections: list) -> str:
                     formatted_html += '</div>'
                     
                 elif isinstance(article, str):
-                    # Handle string articles (already formatted content)
+                    # Handle string articles (already formatted content) - clean markdown
+                    cleaned_content = clean_markdown_content(article)
                     formatted_html += f'<div class="article-item">'
-                    formatted_html += f'<div class="article-content">{article}</div>'
+                    formatted_html += f'<div class="article-content">{cleaned_content}</div>'
                     formatted_html += '</div>'
             
             if section_title:
                 formatted_html += '</div>'
     
     return formatted_html
+
+
+def clean_markdown_content(content: str) -> str:
+    """Clean markdown content for HTML display"""
+    if not content:
+        return ""
+    
+    # Remove common markdown syntax but preserve basic formatting
+    cleaned = content
+    
+    # Convert markdown links [text](url) to HTML links
+    cleaned = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank">\1</a>', cleaned)
+    
+    # Convert **bold** to <strong>
+    cleaned = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', cleaned)
+    
+    # Convert *italic* to <em>
+    cleaned = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', cleaned)
+    
+    # Convert headers to appropriate HTML tags
+    cleaned = re.sub(r'^### (.+)$', r'<h4>\1</h4>', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'^## (.+)$', r'<h3>\1</h3>', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'^# (.+)$', r'<h2>\1</h2>', cleaned, flags=re.MULTILINE)
+    
+    # Convert line breaks to HTML
+    cleaned = cleaned.replace('\n\n', '<br><br>')
+    cleaned = cleaned.replace('\n', '<br>')
+    
+    # Remove any remaining markdown syntax artifacts
+    cleaned = re.sub(r'\*{1,2}', '', cleaned)  # Remove stray asterisks
+    cleaned = re.sub(r'#{1,6}\s*', '', cleaned)  # Remove stray headers
+    
+    return cleaned
 
 
 def convert_html_to_text(html_content: str) -> str:
@@ -467,8 +574,9 @@ def rate_newsletter(newsletter_id: str, rating: int, feedback: str = None) -> tu
 
 
 def display_newsletter_mindmap(newsletter: Dict[str, Any]) -> None:
-    """Display newsletter mindmap if available"""
+    """Display newsletter mindmap with zoom controls and download options"""
     mindmap_markdown = newsletter.get('mindmap_markdown')
+    mindmap_svg = newsletter.get('mindmap_svg', '')
     
     if not mindmap_markdown:
         # Check if we can generate a mindmap
@@ -480,8 +588,8 @@ def display_newsletter_mindmap(newsletter: Dict[str, Any]) -> None:
                 </div>
                 <div class="mindmap-fallback">
                     <h4>🗺️ No Mindmap Available</h4>
-                    <p>This newsletter doesn't have a mindmap yet. Mindmaps provide visual overviews of newsletter content.</p>
-                    <p><strong>Note:</strong> Mindmaps are automatically generated for new newsletters.</p>
+                    <p>This newsletter doesn't have a mindmap yet. Mindmaps provide visual keyword overviews of newsletter content.</p>
+                    <p><strong>Note:</strong> Mindmaps are automatically generated for new newsletters with keyword analysis.</p>
                 </div>
             </div>
             ''',
@@ -489,64 +597,344 @@ def display_newsletter_mindmap(newsletter: Dict[str, Any]) -> None:
         )
         return
     
-    # Display mindmap section
+    # Display mindmap section with enhanced controls
     st.markdown(
         '''
         <div class="mindmap-section">
             <div class="mindmap-header">
-                <h3 class="mindmap-title">🎨 Newsletter Mindmap</h3>
-                <div class="mindmap-controls">
-                    <button class="mindmap-btn" onclick="expandMindmap()">🔍 Expand</button>
-                    <button class="mindmap-btn" onclick="downloadMindmap()">💾 Download</button>
-                </div>
+                <h3 class="mindmap-title">🎨 Newsletter Keywords Mindmap</h3>
             </div>
         </div>
         ''',
         unsafe_allow_html=True
     )
     
+    # Create control panel
+    control_col1, control_col2, control_col3 = st.columns([2, 2, 2])
+    
+    with control_col1:
+        if st.button("🔍 Reset View", key="reset_mindmap"):
+            st.rerun()
+    
+    with control_col2:
+        if st.button("📱 Fullscreen", key="fullscreen_mindmap"):
+            st.info("Click the expand button in the mindmap viewer for fullscreen mode")
+    
+    with control_col3:
+        # SVG Download button
+        if mindmap_svg:
+            st.download_button(
+                label="💾 Download SVG",
+                data=mindmap_svg,
+                file_name=f"mindmap_{newsletter.get('title', 'newsletter').replace(' ', '_')}.svg",
+                mime="image/svg+xml",
+                key="download_mindmap_svg"
+            )
+        else:
+            st.button("💾 SVG Unavailable", disabled=True, key="no_svg")
+    
     # Create tabs for different views
-    mindmap_tab1, mindmap_tab2 = st.columns([2, 1])
+    mindmap_tab1, mindmap_tab2, mindmap_tab3 = st.columns([3, 1, 1])
     
     with mindmap_tab1:
-        st.markdown("**🗺️ Interactive Mindmap**")
+        st.markdown("**🗺️ Interactive Keywords Mindmap**")
         
-        # Try to render with markmap if possible, otherwise show as markdown
+        # Enhanced mindmap rendering with zoom controls
         try:
-            # Use HTML with markmap for interactive mindmap
-            mindmap_html = f"""
-            <div class="mindmap-container">
-                <div id="mindmap-{newsletter.get('id', 'default')}"></div>
-                <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.15"></script>
-                <script>
-                    const mindmapData = {{
-                        content: `{mindmap_markdown.replace('`', '\\`')}`,
-                        options: {{
-                            color: (d) => d.depth === 0 ? '#16a34a' : d.depth === 1 ? '#22c55e' : '#4ade80',
-                            fontSize: '16px',
-                            paddingX: 8,
-                            spacingHorizontal: 80,
-                            spacingVertical: 20
+            # Check if it's Mermaid format
+            if mindmap_markdown.strip().startswith('mindmap'):
+                # Enhanced Mermaid component with zoom and pan controls
+                mindmap_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+                    <style>
+                        body {{ 
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            margin: 0; 
+                            padding: 20px; 
+                            background: white;
+                            overflow: hidden;
                         }}
-                    }};
+                        .mindmap-viewer {{
+                            display: flex;
+                            flex-direction: column;
+                            height: 500px;
+                            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                            border-radius: 12px;
+                            padding: 10px;
+                            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                            position: relative;
+                        }}
+                        .mindmap-controls {{
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            padding: 10px;
+                            background: rgba(255, 255, 255, 0.9);
+                            border-radius: 8px;
+                            margin-bottom: 10px;
+                            backdrop-filter: blur(5px);
+                        }}
+                        .zoom-controls {{
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                        }}
+                        .zoom-btn {{
+                            background: #16a34a;
+                            color: white;
+                            border: none;
+                            width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            font-size: 16px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            transition: all 0.2s ease;
+                        }}
+                        .zoom-btn:hover {{
+                            background: #15803d;
+                            transform: scale(1.05);
+                        }}
+                        .zoom-level {{
+                            background: #f1f5f9;
+                            padding: 4px 8px;
+                            border-radius: 4px;
+                            font-size: 0.85rem;
+                            color: #64748b;
+                            min-width: 50px;
+                            text-align: center;
+                        }}
+                        .control-btn {{
+                            background: #6366f1;
+                            color: white;
+                            border: none;
+                            padding: 6px 12px;
+                            border-radius: 6px;
+                            font-size: 0.85rem;
+                            cursor: pointer;
+                            transition: all 0.2s ease;
+                        }}
+                        .control-btn:hover {{
+                            background: #4f46e5;
+                        }}
+                        .mindmap-container {{
+                            flex: 1;
+                            overflow: hidden;
+                            border-radius: 8px;
+                            position: relative;
+                            cursor: grab;
+                        }}
+                        .mindmap-container:active {{
+                            cursor: grabbing;
+                        }}
+                        .mermaid {{
+                            width: 100%;
+                            height: 100%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            transition: transform 0.3s ease;
+                            transform-origin: center center;
+                        }}
+                        .error-message {{
+                            color: #dc2626;
+                            background: #fef2f2;
+                            padding: 16px;
+                            border-radius: 8px;
+                            border: 1px solid #fecaca;
+                            text-align: center;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="mindmap-viewer">
+                        <div class="mindmap-controls">
+                            <div class="zoom-controls">
+                                <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+                                <div class="zoom-level" id="zoomLevel">100%</div>
+                                <button class="zoom-btn" onclick="zoomIn()" title="Zoom In">+</button>
+                            </div>
+                            <div>
+                                <button class="control-btn" onclick="resetView()" title="Reset View">🔄 Reset</button>
+                                <button class="control-btn" onclick="downloadSVG()" title="Download SVG">💾 SVG</button>
+                            </div>
+                        </div>
+                        <div class="mindmap-container" id="mindmapContainer">
+                            <div class="mermaid" id="mindmap">
+                                {mindmap_markdown}
+                            </div>
+                        </div>
+                    </div>
                     
-                    // Simple fallback rendering
-                    document.getElementById('mindmap-{newsletter.get('id', 'default')}').innerHTML = 
-                        '<div style="font-family: monospace; white-space: pre-wrap; line-height: 1.6; color: #374151;">' + 
-                        mindmapData.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') + 
-                        '</div>';
-                </script>
-            </div>
-            """
-            
-            # Display the mindmap HTML
-            st.components.v1.html(mindmap_html, height=400, scrolling=True)
+                    <script>
+                        let currentZoom = 1;
+                        let isDragging = false;
+                        let startX, startY, currentX = 0, currentY = 0;
+                        
+                        // Initialize Mermaid
+                        mermaid.initialize({{
+                            startOnLoad: true,
+                            theme: 'default',
+                            mindmap: {{
+                                padding: 10,
+                                maxNodeTextLength: 50,
+                                curve: 'basis'
+                            }},
+                            flowchart: {{
+                                htmlLabels: true,
+                                curve: 'basis'
+                            }}
+                        }});
+                        
+                        // Zoom functions
+                        function zoomIn() {{
+                            currentZoom = Math.min(currentZoom * 1.2, 3);
+                            updateTransform();
+                        }}
+                        
+                        function zoomOut() {{
+                            currentZoom = Math.max(currentZoom / 1.2, 0.3);
+                            updateTransform();
+                        }}
+                        
+                        function resetView() {{
+                            currentZoom = 1;
+                            currentX = 0;
+                            currentY = 0;
+                            updateTransform();
+                        }}
+                        
+                        function updateTransform() {{
+                            const mindmap = document.getElementById('mindmap');
+                            mindmap.style.transform = `translate(${{currentX}}px, ${{currentY}}px) scale(${{currentZoom}})`;
+                            document.getElementById('zoomLevel').textContent = Math.round(currentZoom * 100) + '%';
+                        }}
+                        
+                        // Pan functionality
+                        const container = document.getElementById('mindmapContainer');
+                        
+                        container.addEventListener('mousedown', (e) => {{
+                            isDragging = true;
+                            startX = e.clientX - currentX;
+                            startY = e.clientY - currentY;
+                            container.style.cursor = 'grabbing';
+                        }});
+                        
+                        container.addEventListener('mousemove', (e) => {{
+                            if (!isDragging) return;
+                            currentX = e.clientX - startX;
+                            currentY = e.clientY - startY;
+                            updateTransform();
+                        }});
+                        
+                        container.addEventListener('mouseup', () => {{
+                            isDragging = false;
+                            container.style.cursor = 'grab';
+                        }});
+                        
+                        // Wheel zoom
+                        container.addEventListener('wheel', (e) => {{
+                            e.preventDefault();
+                            if (e.deltaY < 0) {{
+                                zoomIn();
+                            }} else {{
+                                zoomOut();
+                            }}
+                        }});
+                        
+                        // Download SVG function
+                        function downloadSVG() {{
+                            try {{
+                                const svg = document.querySelector('#mindmap svg');
+                                if (svg) {{
+                                    const svgData = new XMLSerializer().serializeToString(svg);
+                                    const blob = new Blob([svgData], {{type: 'image/svg+xml'}});
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = 'mindmap.svg';
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                }} else {{
+                                    alert('SVG not available for download');
+                                }}
+                            }} catch (error) {{
+                                console.error('Download error:', error);
+                                alert('Error downloading SVG');
+                            }}
+                        }}
+                        
+                        // Error handling
+                        mermaid.parseError = function(err, hash) {{
+                            console.error('Mermaid parsing error:', err);
+                            document.getElementById('mindmap').innerHTML = 
+                                '<div class="error-message">❌ Error rendering mindmap. Please check the source format.</div>';
+                        }};
+                        
+                        // Render the mindmap
+                        try {{
+                            mermaid.init(undefined, document.getElementById('mindmap'));
+                        }} catch (error) {{
+                            console.error('Mermaid render error:', error);
+                            document.getElementById('mindmap').innerHTML = 
+                                '<div class="error-message">⚠️ Mindmap rendering failed. Showing source content.</div>';
+                        }}
+                    </script>
+                </body>
+                </html>
+                """
+                
+                # Display the enhanced interactive Mermaid mindmap
+                st.components.v1.html(mindmap_html, height=600, scrolling=False)
+                
+            else:
+                # Legacy markdown format - convert to visual tree
+                st.markdown("**📋 Mindmap Structure**")
+                
+                # Process markdown mindmap into visual format
+                lines = mindmap_markdown.split('\n')
+                processed_lines = []
+                
+                for line in lines:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    # Count indentation level
+                    indent_level = (len(line) - len(line.lstrip())) // 2
+                    content = line.lstrip('- #').strip()
+                    
+                    if content:
+                        # Create visual tree structure
+                        prefix = "  " * indent_level
+                        if indent_level == 0:
+                            emoji = "🎯"
+                        elif indent_level == 1:
+                            emoji = "📂"
+                        elif indent_level == 2:
+                            emoji = "📄"
+                        else:
+                            emoji = "🔹"
+                        
+                        processed_lines.append(f"{prefix}{emoji} **{content}**")
+                
+                # Display as formatted markdown
+                mindmap_display = "\n".join(processed_lines)
+                st.markdown(mindmap_display)
             
         except Exception as e:
             # Fallback to plain markdown display
+            st.error(f"Error rendering mindmap: {str(e)}")
             st.markdown("**Mindmap Preview:**")
             with st.expander("🗺️ View Mindmap Content", expanded=True):
-                st.markdown(mindmap_markdown)
+                # Clean and display the mindmap content
+                cleaned_content = clean_markdown_content(mindmap_markdown)
+                st.markdown(cleaned_content, unsafe_allow_html=True)
     
     with mindmap_tab2:
         st.markdown("**📄 Mindmap Source**")
