@@ -274,11 +274,27 @@ def send_otp_request(email: str) -> tuple[bool, str]:
         )
 
         if response.status_code == 200:
-            data = response.json()
-            return True, data.get("message", "OTP sent successfully")
+            # Handle empty response
+            if not response.text or response.text.strip() == "":
+                return True, "OTP sent successfully"
+            
+            try:
+                data = response.json()
+                return True, data.get("message", "OTP sent successfully")
+            except ValueError:
+                # Handle invalid JSON response
+                return True, "OTP sent successfully"
         else:
-            error_data = response.json()
-            return False, error_data.get("detail", "Failed to send OTP")
+            # Handle error responses
+            if not response.text or response.text.strip() == "":
+                return False, f"Failed to send OTP (Status: {response.status_code})"
+            
+            try:
+                error_data = response.json()
+                return False, error_data.get("detail", f"Failed to send OTP (Status: {response.status_code})")
+            except ValueError:
+                # Handle invalid JSON in error response
+                return False, f"Failed to send OTP (Status: {response.status_code})"
 
     except requests.exceptions.ConnectionError:
         return False, "Cannot connect to server. Please make sure the API is running."
@@ -298,11 +314,27 @@ def verify_otp_request(email: str, otp_code: str) -> tuple[bool, str, Optional[d
         )
 
         if response.status_code == 200:
-            data = response.json()
-            return True, data.get("message", "OTP verified successfully"), data
+            # Handle empty response
+            if not response.text or response.text.strip() == "":
+                return True, "OTP verified successfully", None
+            
+            try:
+                data = response.json()
+                return True, data.get("message", "OTP verified successfully"), data
+            except ValueError:
+                # Handle invalid JSON response
+                return True, "OTP verified successfully", None
         else:
-            error_data = response.json()
-            return False, error_data.get("detail", "OTP verification failed"), None
+            # Handle error responses
+            if not response.text or response.text.strip() == "":
+                return False, f"OTP verification failed (Status: {response.status_code})", None
+            
+            try:
+                error_data = response.json()
+                return False, error_data.get("detail", f"OTP verification failed (Status: {response.status_code})"), None
+            except ValueError:
+                # Handle invalid JSON in error response
+                return False, f"OTP verification failed (Status: {response.status_code})", None
 
     except requests.exceptions.ConnectionError:
         return (
