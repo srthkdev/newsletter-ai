@@ -1,5 +1,4 @@
 from portia import Portia, Config, LLMProvider
-from portia.open_source_tools.registry import example_tool_registry
 from app.core.config import settings
 import os
 
@@ -44,13 +43,13 @@ def get_portia_client():
         # Only initialize if we have at least one API key
         if google_api_key or portia_api_key:
             config = get_portia_config()
-            return Portia(config=config, tools=example_tool_registry)
+            return Portia(config=config)
         else:
             # Return None if no API keys are configured
             return None
     except ImportError:
-        # Portia SDK not installed with Google extras
-        print("Warning: Could not initialize Portia client: Please install portia-sdk-python[google] to use this functionality.")
+        # Portia SDK not installed
+        print("Warning: Could not initialize Portia client: Please install portia-sdk-python to use this functionality.")
         return None
     except Exception as e:
         print(f"Warning: Could not initialize Portia client: {e}")
