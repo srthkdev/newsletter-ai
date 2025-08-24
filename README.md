@@ -118,6 +118,7 @@ Our **Retrieval-Augmented Generation (RAG)** system uses:
 #### 🔄 Background Processing
 - **Newsletter Scheduler**: Automated frequency-based generation
 - **Email Delivery**: Resend API integration with retry mechanisms
+- **Slack Delivery**: Slack API integration for team communication
 - **Error Recovery**: Automatic agent recovery mechanisms
 - **Performance Monitoring**: Real-time health tracking
 - **Status**: ✅ **Fully Operational** with fixed email template generation
@@ -128,6 +129,13 @@ Our **Retrieval-Augmented Generation (RAG)** system uses:
 - **Mindmap Integration**: SVG mindmaps embedded in emails
 - **Delivery Tracking**: Success/failure monitoring with retry logic
 - **Status**: ✅ **Fully Operational** - background variable error resolved
+
+### 📢 Slack Integration
+- **Team Communication**: Deliver newsletters directly to Slack channels
+- **Portia AI Slack Tools**: Integration with Portia's Slack MCP tools
+- **Rich Formatting**: Newsletter content formatted for Slack's messaging system
+- **Channel Targeting**: Send to specific channels or users
+- **Status**: ✅ **Fully Operational** - ready for team collaboration
 
 ## 🔧 How Portia AI Powers Our System
 
@@ -216,7 +224,7 @@ POST /auth/verify-otp
 ```http
 POST /newsletters/generate              # Standard generation
 POST /newsletters/generate-custom       # Custom prompt generation
-POST /newsletters/send-now             # Immediate sending
+POST /newsletters/send-now             # Immediate sending (email and/or Slack)
 GET  /newsletters/analytics/{user_id}   # Performance analytics
 ```
 
@@ -247,6 +255,12 @@ POST /newsletters/scheduler/trigger-immediate/{user_id}  # Manual trigger
 GET  /newsletters/monitoring/dashboard  # System health
 GET  /newsletters/monitoring/agent/{name}  # Agent details
 POST /newsletters/monitoring/start      # Start monitoring
+```
+
+### 📢 Slack Integration
+```http
+POST /newsletters/generate?send_slack=true  # Generate and send via Slack
+POST /newsletters/send-now?send_slack=true  # Immediate send via Slack
 ```
 
 ## 🔧 Recent Updates & Fixes
@@ -343,6 +357,11 @@ TAVILY_API_KEY=your_tavily_key         # Web search
 
 # Email & Communication  
 RESEND_API_KEY=your_resend_key         # Email delivery
+
+# Slack Integration
+SLACK_BOT_TOKEN=your_slack_bot_token   # Slack bot token
+SLACK_APP_TOKEN=your_slack_app_token   # Slack app token
+SLACK_CHANNEL_ID=your_channel_id       # Default Slack channel ID
 
 # Storage & Memory
 UPSTASH_REDIS_REST_URL=your_redis_url

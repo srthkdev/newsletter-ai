@@ -10,6 +10,7 @@ from app.portia.preference_agent import preference_agent
 from app.portia.custom_prompt_agent import custom_prompt_agent
 from app.portia.mindmap_agent import mindmap_agent
 from app.services.email import email_service
+from app.services.slack import slack_service
 from app.services.memory import memory_service
 
 
@@ -23,6 +24,7 @@ class NewsletterAgentOrchestrator:
         self.custom_prompt_agent = custom_prompt_agent
         self.mindmap_agent = mindmap_agent
         self.email_service = email_service
+        self.slack_service = slack_service
         self.memory_service = memory_service
 
     async def generate_newsletter(
@@ -30,7 +32,9 @@ class NewsletterAgentOrchestrator:
         user_id: str,
         custom_prompt: Optional[str] = None,
         send_email: bool = False,
+        send_slack: bool = False,
         user_email: Optional[str] = None,
+        slack_channel_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Complete newsletter generation workflow
@@ -39,7 +43,9 @@ class NewsletterAgentOrchestrator:
             user_id: User identifier
             custom_prompt: Optional custom prompt for newsletter generation
             send_email: Whether to send the newsletter via email
+            send_slack: Whether to send the newsletter via Slack
             user_email: User's email address (required if send_email=True)
+            slack_channel_id: Slack channel ID (required if send_slack=True)
 
         Returns:
             Dictionary containing the generated newsletter and workflow results
@@ -51,6 +57,7 @@ class NewsletterAgentOrchestrator:
             "success": False,
             "newsletter": None,
             "email_sent": False,
+            "slack_sent": False,
         }
 
         try:
@@ -244,8 +251,43 @@ class NewsletterAgentOrchestrator:
                         metadata={"email": user_email, "subject": subject_line},
                     )
 
-            # Step 8: Store newsletter in history
-            print("🔄 Step 8: Storing newsletter in history...")
+            # Step 8: Send to Slack if requested
+            if send_slack and slack_channel_id:
+                print("🔄 Step 8: Sending newsletter to Slack...")
+
+                # Use the first subject line or create a default
+                subject_lines = newsletter.get("subject_lines", [])
+                subject_line = (
+                    subject_lines[0]
+                    if subject_lines
+                    else f"📢 {newsletter.get('title', 'Your Newsletter')}"
+                )
+
+                slack_success, delivery_info = await self.slack_service.send_newsletter_slack(
+                    channel_id=slack_channel_id,
+                    newsletter_data=newsletter,
+                    subject_line=subject_line,
+                )
+
+                workflow_results["slack_sent"] = slack_success
+                workflow_results["steps"]["slack"] = {
+                    "success": slack_success,
+                    "channel_id": slack_channel_id,
+                    "subject": subject_line,
+                    "delivery_info": delivery_info,
+                }
+
+                if slack_success:
+                    # Update engagement metrics
+                    await self.memory_service.update_engagement_metrics(
+                        user_id=user_id,
+                        newsletter_id=newsletter.get("id", "generated_newsletter"),
+                        action="sent_slack",
+                        metadata={"channel_id": slack_channel_id, "subject": subject_line},
+                    )
+
+            # Step 9: Store newsletter in history
+            print("🔄 Step 9: Storing newsletter in history...")
             newsletter_with_id = {
                 **newsletter,
                 "id": f"newsletter_{datetime.utcnow().isoformat()}",

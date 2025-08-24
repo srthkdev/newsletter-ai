@@ -47,6 +47,7 @@ email-validator>=2.2.0,<3.0.0
 # External API Services
 resend>=2.13.0,<3.0.0
 tavily-python>=0.7.11,<1.0.0
+slack-sdk>=3.31.0,<4.0.0
 
 # Cloud Storage & Cache
 upstash-redis>=1.4.0,<2.0.0

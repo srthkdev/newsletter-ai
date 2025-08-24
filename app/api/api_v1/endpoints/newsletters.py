@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class GenerateNewsletterRequest(BaseModel):
+    send_email: bool = False
+    send_slack: bool = False
+    slack_channel_id: Optional[str] = None
+
+
 def create_formatted_content(newsletter_obj: Dict[str, Any]) -> str:
     """Create formatted newsletter content from newsletter object for beautiful display"""
     if newsletter_obj is None:
@@ -156,7 +162,7 @@ async def get_newsletters(
 
 @router.post("/generate")
 async def generate_newsletter(
-    send_immediately: bool = False, 
+    request: GenerateNewsletterRequest = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token)
 ):
@@ -166,6 +172,10 @@ async def generate_newsletter(
         from app.utils.db_utils import db_utils
         from app.models.newsletter import NewsletterStatus
         import uuid
+        
+        # Set default request if none provided
+        if request is None:
+            request = GenerateNewsletterRequest()
         
         user_id = str(current_user.id)
         
@@ -180,8 +190,10 @@ async def generate_newsletter(
         # Generate newsletter using AI agents
         result = await orchestrator.generate_newsletter(
             user_id=user_id,
-            send_email=send_immediately,
-            user_email=current_user.email if send_immediately else None
+            send_email=request.send_email,
+            send_slack=request.send_slack,
+            user_email=current_user.email if request.send_email else None,
+            slack_channel_id=request.slack_channel_id if request.send_slack else None
         )
         
         # Safe logging to avoid NoneType errors
@@ -231,7 +243,7 @@ async def generate_newsletter(
             "mindmap_svg": result.get("steps", {}).get("mindmap", {}).get("mindmap_svg", ""),  # Add SVG data
             "keywords_data": result.get("steps", {}).get("mindmap", {}).get("keywords_data", {}),  # Add keywords
             "mindmap_agent_data": result.get("steps", {}).get("mindmap", {}),  # Store mindmap generation metadata
-            "status": NewsletterStatus.SENT if send_immediately else NewsletterStatus.READY,
+            "status": NewsletterStatus.SENT if (request.send_email or request.send_slack) else NewsletterStatus.READY,
             "content_sections": newsletter_obj.get("sections", []),
             "sources_used": result.get("articles", [])[:5],  # Store some articles as sources
             "topics_covered": newsletter_obj.get("metadata", {}).get("user_preferences", {}).get("topics", []),
@@ -239,18 +251,26 @@ async def generate_newsletter(
             "estimated_read_time": result.get("estimated_read_time", 5)
         }
         
-        if send_immediately:
+        if request.send_email or request.send_slack:
             newsletter_data["sent_at"] = datetime.now(timezone.utc)
         
         newsletter = db_utils.create_newsletter(user_id, newsletter_data)
         
-        return {
+        response_data = {
             "success": True,
             "message": "Newsletter generated successfully",
             "newsletter_id": str(newsletter.id),
             "title": newsletter.title,
             "status": newsletter.status.value if hasattr(newsletter.status, 'value') else str(newsletter.status)
         }
+        
+        # Add delivery information to response
+        if request.send_email:
+            response_data["email_sent"] = result.get("email_sent", False)
+        if request.send_slack:
+            response_data["slack_sent"] = result.get("slack_sent", False)
+        
+        return response_data
         
     except HTTPException:
         raise
@@ -358,9 +378,19 @@ async def enhance_prompt_with_rag(
 
 
 @router.post("/send-now")
-async def send_newsletter_now(user_id: str = "demo_user", db: Session = Depends(get_db)):
+async def send_newsletter_now(
+    send_slack: bool = False,
+    slack_channel_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token)
+):
     """Generate and send newsletter immediately"""
-    return await generate_newsletter(user_id=user_id, send_immediately=True, db=db)
+    request = GenerateNewsletterRequest(
+        send_email=True,
+        send_slack=send_slack,
+        slack_channel_id=slack_channel_id
+    )
+    return await generate_newsletter(request, db, current_user)
 
 
 @router.get("/{newsletter_id}")

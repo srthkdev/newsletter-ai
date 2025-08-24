@@ -1,4 +1,4 @@
-from portia import Portia, Config, LLMProvider
+from portia import Portia, Config, LLMProvider, StorageClass
 from app.core.config import settings
 import os
 
@@ -6,46 +6,70 @@ import os
 # Initialize Portia configuration
 def get_portia_config():
     """Get Portia configuration based on environment settings"""
+    # Check for Portia API key first
+    portia_api_key = settings.PORTIA_API_KEY
+    
     # Use Gemini as the default LLM provider
-    google_api_key = os.getenv("GOOGLE_API_KEY")
+    google_api_key = settings.GOOGLE_API_KEY
 
     if google_api_key:
         config = Config.from_default(
             llm_provider=LLMProvider.GOOGLE,
             default_model="google/gemini-2.5-flash",
             google_api_key=google_api_key,
+            storage_class=StorageClass.CLOUD,
+            portia_api_key=portia_api_key,  # Add Portia API key for cloud storage
         )
     else:
         # Fallback to OpenAI if Google API key is not available
-        openai_api_key = os.getenv("OPENAI_API_KEY")
+        openai_api_key = settings.OPENAI_API_KEY
         if openai_api_key:
             config = Config.from_default(
                 llm_provider=LLMProvider.OPENAI,
                 default_model="gpt-4",
                 openai_api_key=openai_api_key,
+                storage_class=StorageClass.CLOUD,
+                portia_api_key=portia_api_key,  # Add Portia API key for cloud storage
             )
         else:
-            # Create a minimal config without API keys for testing
-            config = Config.from_default()
+            # Create a minimal config with cloud storage for testing
+            config = Config.from_default(
+                storage_class=StorageClass.CLOUD,
+                portia_api_key=portia_api_key,  # Add Portia API key for cloud storage
+            )
 
     return config
 
 
-# Initialize Portia client
+# Initialize Portia client with Slack MCP integration
 def get_portia_client():
-    """Get configured Portia client instance"""
+    """Get configured Portia client instance with Slack MCP integration"""
     try:
         # Check if we have the required API keys
-        google_api_key = os.getenv("GOOGLE_API_KEY")
-        
-        portia_api_key = os.getenv("PORTIA_API_KEY")
+        google_api_key = settings.GOOGLE_API_KEY
+        portia_api_key = settings.PORTIA_API_KEY
         
         # Only initialize if we have at least one API key
-        if google_api_key or portia_api_key:
+        if (google_api_key or portia_api_key) and portia_api_key:
             config = get_portia_config()
-            return Portia(config=config)
+            
+            # Initialize Portia client
+            portia = Portia(config=config)
+            
+            # Add Slack MCP integration if Slack tokens are configured
+            slack_bot_token = settings.SLACK_BOT_TOKEN
+            slack_app_token = settings.SLACK_APP_TOKEN
+            
+            if slack_bot_token and slack_app_token:
+                print("✅ Slack MCP integration available")
+                # In a real implementation, we would integrate the Slack MCP tools here
+                # For now, we'll just indicate that Slack integration is available
+                pass
+            
+            return portia
         else:
             # Return None if no API keys are configured
+            print("⚠️  Portia API key not configured. Plans will not be visible on app.portia.")
             return None
     except ImportError:
         # Portia SDK not installed

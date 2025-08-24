@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     RESEND_API_KEY: Optional[str] = None
     RESEND_FROM_EMAIL: Optional[str] = None
 
+    # Slack services
+    SLACK_BOT_TOKEN: Optional[str] = None
+    SLACK_APP_TOKEN: Optional[str] = None
+    SLACK_CHANNEL_ID: Optional[str] = None
+
     # Tavily API
     TAVILY_API_KEY: Optional[str] = None
 
