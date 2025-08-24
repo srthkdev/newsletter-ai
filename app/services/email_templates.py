@@ -323,7 +323,7 @@ class EmailTemplateManager:
             <div class="email-container">
                 <div class="header">
                     <h1>📰 {title}</h1>
-                    <p>{datetime.now().strftime("%A, %B %d, %Y")}</p>
+                    <p>{datetime.now().strftime('%A, %B %d, %Y')}</p>
                 </div>
                 <div class="content">
                     {'<div class="introduction"><h2>Welcome!</h2><p>' + greeting + ' Here\'s your personalized newsletter with the latest insights.</p></div>' if not introduction else ''}
@@ -397,7 +397,7 @@ class EmailTemplateManager:
             <div class="email-container">
                 <div class="header">
                     <h1>📊 {title}</h1>
-                    <p>Week of {datetime.now().strftime("%B %d, %Y")}</p>
+                    <p>Week of {datetime.now().strftime('%B %d, %Y')}</p>
                 </div>
                 <div class="content">
                     <div class="week-header">
@@ -463,7 +463,7 @@ class EmailTemplateManager:
                 </div>
                 <div class="header">
                     <h1>⚡ {title}</h1>
-                    <p>{datetime.now().strftime("%I:%M %p, %B %d, %Y")}</p>
+                    <p>{datetime.now().strftime('%I:%M %p, %B %d, %Y')}</p>
                 </div>
                 <div class="content">
                     {"".join([self._format_breaking_section(section) for section in sections])}
@@ -574,7 +574,7 @@ class EmailTemplateManager:
             <div class="email-container">
                 <div class="header">
                     <h1>🔬 {title}</h1>
-                    <p>Research compiled on {datetime.now().strftime("%B %d, %Y")}</p>
+                    <p>Research compiled on {datetime.now().strftime('%B %d, %Y')}</p>
                 </div>
                 <div class="content">
                     <div class="research-header">
