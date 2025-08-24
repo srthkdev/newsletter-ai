@@ -12,20 +12,40 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import traceback
+import os
 
 from app.portia.agent_orchestrator import agent_orchestrator
 from app.services.memory import memory_service
 
 
+# Ensure logs directory exists
+logs_dir = 'logs'
+if not os.path.exists(logs_dir):
+    try:
+        os.makedirs(logs_dir)
+    except OSError:
+        # If we can't create the directory, log to stdout only
+        logs_dir = None
+
 # Configure comprehensive logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/newsletter_ai.log'),
-        logging.StreamHandler()
-    ]
-)
+if logs_dir:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(os.path.join(logs_dir, 'newsletter_ai.log')),
+            logging.StreamHandler()
+        ]
+    )
+else:
+    # Fallback to console-only logging if directory creation fails
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler()
+        ]
+    )
 logger = logging.getLogger(__name__)
 
 

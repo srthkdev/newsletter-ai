@@ -42,6 +42,9 @@ RUN groupadd -r newsletter && useradd -r -g newsletter newsletter
 # Create and set working directory
 WORKDIR /app
 
+# Create logs directory
+RUN mkdir -p /app/logs
+
 # Copy Python packages from builder stage
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
