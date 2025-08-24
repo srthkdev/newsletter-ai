@@ -13,6 +13,8 @@ services:
         fromDatabase:
           name: newsletter-ai-db
           property: connectionString
+      - key: BACKEND_CORS_ORIGINS
+        value: https://newsletter-ai-1.onrender.com,http://localhost:3000,http://localhost:8501
     healthCheckPath: /health
     
   # Streamlit Frontend Service  

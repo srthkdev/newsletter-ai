@@ -38,11 +38,11 @@ def get_portia_client():
     try:
         # Check if we have the required API keys
         google_api_key = os.getenv("GOOGLE_API_KEY")
-        openai_api_key = os.getenv("OPENAI_API_KEY")
+        
         portia_api_key = os.getenv("PORTIA_API_KEY")
         
         # Only initialize if we have at least one API key
-        if google_api_key or openai_api_key or portia_api_key:
+        if google_api_key or portia_api_key:
             config = get_portia_config()
             return Portia(config=config, tools=example_tool_registry)
         else:
