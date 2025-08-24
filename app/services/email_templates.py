@@ -310,7 +310,10 @@ class EmailTemplateManager:
 
         greeting = f"Good morning{f', {user_name}' if user_name else ''}! ☀️"
         
-        return f"""
+        # Format datetime outside f-string to avoid backslash issues
+        current_date = datetime.now().strftime('%A, %B %d, %Y')
+        
+        html_content = f'''
         <!DOCTYPE html>
         <html>
         <head>
@@ -323,24 +326,41 @@ class EmailTemplateManager:
             <div class="email-container">
                 <div class="header">
                     <h1>📰 {title}</h1>
-                    <p>{datetime.now().strftime('%A, %B %d, %Y')}</p>
+                    <p>{current_date}</p>
                 </div>
                 <div class="content">
-                    {'<div class="introduction"><h2>Welcome!</h2><p>' + greeting + ' Here\'s your personalized newsletter with the latest insights.</p></div>' if not introduction else ''}
-                    
-                    {f'<div class="introduction"><h2>Introduction</h2><p>{introduction}</p></div>' if introduction else ''}
-                    
-                    {f'<div class="summary-section"><h2>📋 Executive Summary</h2><p>{summary}</p></div>' if summary else ''}
-                    
+        '''
+        
+        # Add introduction section
+        if not introduction:
+            html_content += f'<div class="introduction"><h2>Welcome!</h2><p>{greeting} Here\'s your personalized newsletter with the latest insights.</p></div>'
+        
+        if introduction:
+            html_content += f'<div class="introduction"><h2>Introduction</h2><p>{introduction}</p></div>'
+        
+        if summary:
+            html_content += f'<div class="summary-section"><h2>📋 Executive Summary</h2><p>{summary}</p></div>'
+        
+        html_content += '''
                     <div class="divider"></div>
-                    
-                    {"".join([self._format_digest_section(section) for section in sections])}
-                    
-                    {self._format_mindmap_section(newsletter_data)}
-                    
-                    {f'<div class="conclusion"><h2>Conclusion</h2><p>{conclusion}</p></div>' if conclusion else ''}
-                    
-                    {self._format_sources_section(sources) if sources else ''}
+        '''
+        
+        # Add sections
+        for section in sections:
+            html_content += self._format_digest_section(section)
+        
+        # Add mindmap section
+        html_content += self._format_mindmap_section(newsletter_data)
+        
+        # Add conclusion
+        if conclusion:
+            html_content += f'<div class="conclusion"><h2>Conclusion</h2><p>{conclusion}</p></div>'
+        
+        # Add sources
+        if sources:
+            html_content += self._format_sources_section(sources)
+        
+        html_content += '''
                 </div>
                 <div class="footer">
                     <h3>Newsletter AI</h3>
@@ -349,7 +369,9 @@ class EmailTemplateManager:
             </div>
         </body>
         </html>
-        """
+        '''
+        
+        return html_content
 
     def _weekly_roundup_template(
         self, 
@@ -362,7 +384,11 @@ class EmailTemplateManager:
         user_name = user_preferences.get("name", "")
         primary_color = self._get_topic_color(user_preferences.get("topics", []))
 
-        return f"""
+        # Format datetime outside f-string to avoid backslash issues
+        week_date = datetime.now().strftime('%B %d, %Y')
+        week_in_review_text = f' for {user_name}' if user_name else ''
+        
+        html_content = f'''
         <!DOCTYPE html>
         <html>
         <head>
@@ -397,14 +423,20 @@ class EmailTemplateManager:
             <div class="email-container">
                 <div class="header">
                     <h1>📊 {title}</h1>
-                    <p>Week of {datetime.now().strftime('%B %d, %Y')}</p>
+                    <p>Week of {week_date}</p>
                 </div>
                 <div class="content">
                     <div class="week-header">
-                        <h2>Week in Review{f' for {user_name}' if user_name else ''}</h2>
+                        <h2>Week in Review{week_in_review_text}</h2>
                         <p>The most important stories and trends from the past week</p>
                     </div>
-                    {"".join([self._format_roundup_section(section) for section in sections])}
+        '''
+        
+        # Add sections
+        for section in sections:
+            html_content += self._format_roundup_section(section)
+        
+        html_content += '''
                 </div>
                 <div class="footer">
                     <h3>Newsletter AI</h3>
@@ -413,7 +445,9 @@ class EmailTemplateManager:
             </div>
         </body>
         </html>
-        """
+        '''
+        
+        return html_content
 
     def _breaking_news_template(
         self, 
@@ -425,7 +459,10 @@ class EmailTemplateManager:
         sections = newsletter_data.get("sections", [])
         primary_color = "#dc2626"  # Red for urgency
 
-        return f"""
+        # Format datetime outside f-string to avoid backslash issues
+        breaking_date = datetime.now().strftime('%I:%M %p, %B %d, %Y')
+        
+        html_content = f'''
         <!DOCTYPE html>
         <html>
         <head>
@@ -463,10 +500,16 @@ class EmailTemplateManager:
                 </div>
                 <div class="header">
                     <h1>⚡ {title}</h1>
-                    <p>{datetime.now().strftime('%I:%M %p, %B %d, %Y')}</p>
+                    <p>{breaking_date}</p>
                 </div>
                 <div class="content">
-                    {"".join([self._format_breaking_section(section) for section in sections])}
+        '''
+        
+        # Add sections
+        for section in sections:
+            html_content += self._format_breaking_section(section)
+        
+        html_content += '''
                 </div>
                 <div class="footer">
                     <h3>Newsletter AI</h3>
@@ -475,7 +518,9 @@ class EmailTemplateManager:
             </div>
         </body>
         </html>
-        """
+        '''
+        
+        return html_content
 
     def _custom_prompt_template(
         self, 
@@ -545,7 +590,10 @@ class EmailTemplateManager:
         sections = newsletter_data.get("sections", [])
         primary_color = "#059669"  # Green for research
 
-        return f"""
+        # Format datetime outside f-string to avoid backslash issues
+        research_date = datetime.now().strftime('%B %d, %Y')
+        
+        html_content = f'''
         <!DOCTYPE html>
         <html>
         <head>
@@ -574,14 +622,20 @@ class EmailTemplateManager:
             <div class="email-container">
                 <div class="header">
                     <h1>🔬 {title}</h1>
-                    <p>Research compiled on {datetime.now().strftime('%B %d, %Y')}</p>
+                    <p>Research compiled on {research_date}</p>
                 </div>
                 <div class="content">
                     <div class="research-header">
                         <h2>Research Findings</h2>
                         <p>Comprehensive analysis based on the latest available data and sources</p>
                     </div>
-                    {"".join([self._format_research_section(section) for section in sections])}
+        '''
+        
+        # Add sections
+        for section in sections:
+            html_content += self._format_research_section(section)
+        
+        html_content += '''
                 </div>
                 <div class="footer">
                     <h3>Newsletter AI</h3>
@@ -590,7 +644,9 @@ class EmailTemplateManager:
             </div>
         </body>
         </html>
-        """
+        '''
+        
+        return html_content
 
     def _default_template(
         self, 
