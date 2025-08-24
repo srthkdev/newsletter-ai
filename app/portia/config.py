@@ -36,8 +36,22 @@ def get_portia_config():
 def get_portia_client():
     """Get configured Portia client instance"""
     try:
-        config = get_portia_config()
-        return Portia(config=config, tools=example_tool_registry)
+        # Check if we have the required API keys
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        portia_api_key = os.getenv("PORTIA_API_KEY")
+        
+        # Only initialize if we have at least one API key
+        if google_api_key or openai_api_key or portia_api_key:
+            config = get_portia_config()
+            return Portia(config=config, tools=example_tool_registry)
+        else:
+            # Return None if no API keys are configured
+            return None
+    except ImportError:
+        # Portia SDK not installed with Google extras
+        print("Warning: Could not initialize Portia client: Please install portia-sdk-python[google] to use this functionality.")
+        return None
     except Exception as e:
         print(f"Warning: Could not initialize Portia client: {e}")
         return None
