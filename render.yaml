@@ -8,7 +8,7 @@ services:
     plan: starter  # Free tier available
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.12.0
       - key: DATABASE_URL
         fromDatabase:
           name: newsletter-ai-db
@@ -24,7 +24,7 @@ services:
     plan: starter  # Free tier available
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.12.0
       - key: API_BASE_URL
         value: https://newsletter-ai-1ndi.onrender.com/api/v1
 
